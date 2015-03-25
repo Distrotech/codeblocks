@@ -251,7 +251,7 @@ val SC_IME_INLINE=1
 get int GetIMEInteraction=2678(,)
 
 # Choose to display the the IME in a winow or inline.
-set void SetIMEInteraction=2679(int imeInteraction,) 
+set void SetIMEInteraction=2679(int imeInteraction,)
 
 enu MarkerSymbol=SC_MARK_
 val MARKER_MAX=31
@@ -296,9 +296,9 @@ val SC_MARK_CHARACTER=10000
 
 enu MarkerOutline=SC_MARKNUM_
 # CHANGEBAR begin #
-# Markers used for outlining and changed column. 
-val SC_MARKNUM_CHANGEUNSAVED=23 
-val SC_MARKNUM_CHANGESAVED=24 
+# Markers used for outlining and changed column.
+val SC_MARKNUM_CHANGEUNSAVED=23
+val SC_MARKNUM_CHANGESAVED=24
 # CHANGEBAR end #
 val SC_MARKNUM_FOLDEREND=25
 val SC_MARKNUM_FOLDEROPENMID=26
@@ -612,6 +612,9 @@ val INDIC_SQUIGGLELOW=11
 val INDIC_DOTBOX=12
 val INDIC_SQUIGGLEPIXMAP=13
 val INDIC_COMPOSITIONTHICK=14
+val INDIC_COMPOSITIONTHIN=15
+val INDIC_FULLBOX=16
+val INDIC_TEXTFORE=17
 val INDIC_IME=32
 val INDIC_IME_MAX=35
 val INDIC_MAX=35
@@ -638,6 +641,30 @@ set void IndicSetUnder=2510(int indic, bool under)
 
 # Retrieve whether indicator drawn under or over text.
 get bool IndicGetUnder=2511(int indic,)
+
+# Set a hover indicator to plain, squiggle or TT.
+set void IndicSetHoverStyle=2680(int indic, int style)
+
+# Retrieve the hover style of an indicator.
+get int IndicGetHoverStyle=2681(int indic,)
+
+# Set the foreground hover colour of an indicator.
+set void IndicSetHoverFore=2682(int indic, colour fore)
+
+# Retrieve the foreground hover colour of an indicator.
+get colour IndicGetHoverFore=2683(int indic,)
+
+val SC_INDICVALUEBIT=0x1000000
+val SC_INDICVALUEMASK=0xFFFFFF
+
+enu IndicFlag=SC_INDICFLAG_
+val SC_INDICFLAG_VALUEFORE=1
+
+# Set the attributes of an indicator.
+set void IndicSetFlags=2684(int indic, int flags)
+
+# Retrieve the attributes of an indicator.
+get int IndicGetFlags=2685(int indic,)
 
 # Set the foreground colour of all whitespace and whether to use this setting.
 fun void SetWhitespaceFore=2084(bool useSetting, colour fore)
@@ -1038,6 +1065,12 @@ set void SetTargetEnd=2192(position pos,)
 
 # Get the position that ends the target.
 get position GetTargetEnd=2193(,)
+
+# Sets both the start and end of the target in one call.
+fun void SetTargetRange=2686(position start, position end)
+
+# Retrieve the text in the target.
+get int GetTargetText=2687(, stringresult characters)
 
 # Replace the target text with the argument text.
 # Text is counted so it can contain NULs.
@@ -2065,12 +2098,6 @@ get int GetRangePointer=2643(int position, int rangeLength)
 # Return a position which, to avoid performance costs, should not be within
 # the range of a call to GetRangePointer.
 get position GetGapPosition=2644(,)
-
-# Always interpret keyboard input as Unicode
-set void SetKeysUnicode=2521(bool keysUnicode,)
-
-# Are keys always interpreted as Unicode?
-get bool GetKeysUnicode=2522(,)
 
 # Set the alpha fill colour of the given indicator.
 set void IndicSetAlpha=2523(int indicator, int alpha)
@@ -4641,3 +4668,11 @@ get bool GetUsePalette=2139(,)
 # In palette mode, Scintilla uses the environment's palette calls to display
 # more colours. This may lead to ugly displays.
 set void SetUsePalette=2039(bool usePalette,)
+
+# Deprecated in 3.5.5
+
+# Always interpret keyboard input as Unicode
+set void SetKeysUnicode=2521(bool keysUnicode,)
+
+# Are keys always interpreted as Unicode?
+get bool GetKeysUnicode=2522(,)

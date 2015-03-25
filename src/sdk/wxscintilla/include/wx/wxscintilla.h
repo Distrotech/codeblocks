@@ -23,7 +23,7 @@
 #include <wx/defs.h>
 
 /* C::B -> Don't forget to change version number here and in wxscintilla.cpp at the bottom */
-#define wxSCINTILLA_VERSION _T("3.53.0")
+#define wxSCINTILLA_VERSION _T("3.54.0")
 
 #include <wx/control.h>
 #include <wx/dnd.h>
@@ -209,6 +209,9 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_INDIC_DOTBOX 12
 #define wxSCI_INDIC_SQUIGGLEPIXMAP 13
 #define wxSCI_INDIC_COMPOSITIONTHICK 14
+#define wxSCI_INDIC_COMPOSITIONTHIN 15
+#define wxSCI_INDIC_FULLBOX 16
+#define wxSCI_INDIC_TEXTFORE 17
 /* C::B begin */
 #define wxSCI_INDIC_HIGHLIGHT 31 // please change also in Scintilla.h !!
 /* C::B end */
@@ -220,6 +223,9 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_INDIC1_MASK 0x40
 #define wxSCI_INDIC2_MASK 0x80
 #define wxSCI_INDICS_MASK 0xE0
+#define wxSCI_INDICVALUEBIT 0x1000000
+#define wxSCI_INDICVALUEMASK 0xFFFFFF
+#define wxSCI_INDICFLAG_VALUEFORE 1
 #define wxSCI_IV_NONE 0
 #define wxSCI_IV_REAL 1
 #define wxSCI_IV_LOOKFORWARD 2
@@ -3209,6 +3215,24 @@ public:
     // Retrieve whether indicator drawn under or over text.
     bool IndicatorGetUnder(int indic) const;
 
+    // Set a hover indicator to plain, squiggle or TT.
+    void IndicSetHoverStyle(int indic, int style);
+
+    // Retrieve the hover style of an indicator.
+    int IndicGetHoverStyle(int indic) const;
+
+    // Set the foreground hover colour of an indicator.
+    void IndicSetHoverFore(int indic, const wxColour& fore);
+
+    // Retrieve the foreground hover colour of an indicator.
+    wxColour IndicGetHoverFore(int indic) const;
+
+    // Set the attributes of an indicator.
+    void IndicSetFlags(int indic, int flags);
+
+    // Retrieve the attributes of an indicator.
+    int IndicGetFlags(int indic) const;
+
     // Set the foreground colour of all whitespace and whether to use this setting.
     void SetWhitespaceForeground(bool useSetting, const wxColour& fore);
 
@@ -3570,6 +3594,12 @@ public:
 
     // Get the position that ends the target.
     int GetTargetEnd() const;
+
+    // Sets both the start and end of the target in one call.
+    void SetTargetRange(int start, int end);
+
+    // Retrieve the text in the target.
+    wxString GetTargetText() const;
 
     // Replace the target text with the argument text.
     // Text is counted so it can contain NULs.
@@ -4446,12 +4476,6 @@ public:
     // Return a position which, to avoid performance costs, should not be within
     // the range of a call to GetRangePointer.
     int GetGapPosition() const;
-
-    // Always interpret keyboard input as Unicode
-    void SetKeysUnicode(bool keysUnicode);
-
-    // Are keys always interpreted as Unicode?
-    bool GetKeysUnicode() const;
 
     // Set the alpha fill colour of the given indicator.
     void IndicatorSetAlpha(int indicator, int alpha);

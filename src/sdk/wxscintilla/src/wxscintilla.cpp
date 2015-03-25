@@ -900,8 +900,9 @@ int wxScintilla::StyleGetSize(int style) const
 // Get the font facename of a style
 wxString wxScintilla::StyleGetFaceName(int style)
 {
+    // determine the string length
     const int msg = SCI_STYLEGETFONT;
-    const long len = SendMsg(msg, style, 0);
+    const long len = SendMsg(msg, style, (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+1);
@@ -1085,6 +1086,7 @@ void wxScintilla::SetWordChars(const wxString& characters)
 // Get the set of characters making up words for when moving or selecting by word.
 wxString wxScintilla::GetWordChars() const
 {
+    // determine the string length
     const int msg = SCI_GETWORDCHARS;
     const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -1145,6 +1147,43 @@ void wxScintilla::IndicatorSetUnder(int indic, bool under)
 bool wxScintilla::IndicatorGetUnder(int indic) const
 {
     return SendMsg(SCI_INDICGETUNDER, indic, 0) != 0;
+}
+
+// Set a hover indicator to plain, squiggle or TT.
+void wxScintilla::IndicSetHoverStyle(int indic, int style)
+{
+    SendMsg(SCI_INDICSETHOVERSTYLE, indic, style);
+}
+
+// Retrieve the hover style of an indicator.
+int wxScintilla::IndicGetHoverStyle(int indic) const
+{
+    return SendMsg(SCI_INDICGETHOVERSTYLE, indic, 0);
+}
+
+// Set the foreground hover colour of an indicator.
+void wxScintilla::IndicSetHoverFore(int indic, const wxColour& fore)
+{
+    SendMsg(SCI_INDICSETHOVERFORE, indic, wxColourAsLong(fore));
+}
+
+// Retrieve the foreground hover colour of an indicator.
+wxColour wxScintilla::IndicGetHoverFore(int indic) const
+{
+    long c = SendMsg(SCI_INDICGETHOVERFORE, indic, 0);
+    return wxColourFromLong(c);
+}
+
+// Set the attributes of an indicator.
+void wxScintilla::IndicSetFlags(int indic, int flags)
+{
+    SendMsg(SCI_INDICSETFLAGS, indic, flags);
+}
+
+// Retrieve the attributes of an indicator.
+int wxScintilla::IndicGetFlags(int indic) const
+{
+    return SendMsg(SCI_INDICGETFLAGS, indic, 0);
 }
 
 // Set the foreground colour of all whitespace and whether to use this setting.
@@ -1728,14 +1767,15 @@ wxString wxScintilla::GetSelectedText()
      * simple selection, but when using multiple selection, or even rectangular
      * selection it may cause a crash. */
 
-    // determine the selected text range
-    const long len = SendMsg(SCI_GETSELTEXT, 0, (uptr_t)0);
+    // determine the string length
+    const int msg = SCI_GETSELTEXT;
+    const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
 /* C::B end */
 
     wxMemoryBuffer mbuf(len+2);
     char* buf = (char*)mbuf.GetWriteBuf(len+1);
-    SendMsg(SCI_GETSELTEXT, 0, (uptr_t)buf);
+    SendMsg(msg, 0, (uptr_t)buf);
     mbuf.UngetWriteBuf(len);
     mbuf.AppendByte(0);
     return sci2wx(buf);
@@ -1935,6 +1975,28 @@ void wxScintilla::SetTargetEnd(int pos)
 int wxScintilla::GetTargetEnd() const
 {
     return SendMsg(SCI_GETTARGETEND, 0, 0);
+}
+
+// Sets both the start and end of the target in one call.
+void wxScintilla::SetTargetRange(int start, int end)
+{
+    SendMsg(SCI_SETTARGETRANGE, start, end);
+}
+
+// Retrieve the text in the target.
+wxString wxScintilla::GetTargetText() const
+{
+    // determine the string length
+    const int msg = SCI_GETTARGETTEXT;
+    const long len = SendMsg(msg, 0, (uptr_t)NULL);
+    if (!len) return wxEmptyString;
+
+    wxMemoryBuffer mbuf(len+1);
+    char* buf = (char*)mbuf.GetWriteBuf(len+1);
+    SendMsg(msg, 0, (uptr_t)buf);
+    mbuf.UngetWriteBuf(len);
+    mbuf.AppendByte(0);
+    return sci2wx(buf);
 }
 
 // Replace the target text with the argument text.
@@ -2452,6 +2514,7 @@ int wxScintilla::GetMultiPaste() const
 // Retrieve the value of a tag from a regular expression search.
 wxString wxScintilla::GetTag(int tagNumber) const
 {
+    // determine the string length
     const int msg = SCI_GETTAG;
     const long len = SendMsg(msg, tagNumber, (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -3430,6 +3493,7 @@ void wxScintilla::SetWhitespaceChars(const wxString& characters)
 // Get the set of characters making up whitespace for when moving or selecting by word.
 wxString wxScintilla::GetWhitespaceChars() const
 {
+    // determine the string length
     const int msg = SCI_GETWHITESPACECHARS;
     const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -3452,6 +3516,7 @@ void wxScintilla::SetPunctuationChars(const wxString& characters)
 // Get the set of characters making up punctuation characters
 wxString wxScintilla::GetPunctuationChars() const
 {
+    // determine the string length
     const int msg = SCI_GETPUNCTUATIONCHARS;
     const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -3517,12 +3582,14 @@ int wxScintilla::AutoCompGetOrder() const
 // Returns the length of the item text
 wxString wxScintilla::AutoCompGetCurrentText() const
 {
-    const long len = SendMsg(SCI_AUTOCGETCURRENTTEXT, 0, 0);
+    // determine the string length
+    const int msg = SCI_AUTOCGETCURRENTTEXT;
+    const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+2);
     char* buf = (char*)mbuf.GetWriteBuf(len+1);
-    SendMsg(SCI_AUTOCGETCURRENTTEXT, 0, (uptr_t)buf);
+    SendMsg(msg, 0, (uptr_t)buf);
     mbuf.UngetWriteBuf(len);
     mbuf.AppendByte(0);
     return sci2wx(buf);
@@ -3707,18 +3774,6 @@ int wxScintilla::GetGapPosition() const
     return SendMsg(SCI_GETGAPPOSITION, 0, 0);
 }
 
-// Always interpret keyboard input as Unicode
-void wxScintilla::SetKeysUnicode(bool keysUnicode)
-{
-    SendMsg(SCI_SETKEYSUNICODE, keysUnicode, 0);
-}
-
-// Are keys always interpreted as Unicode?
-bool wxScintilla::GetKeysUnicode() const
-{
-    return SendMsg(SCI_GETKEYSUNICODE, 0, 0) != 0;
-}
-
 // Set the alpha fill colour of the given indicator.
 void wxScintilla::IndicatorSetAlpha(int indicator, int alpha)
 {
@@ -3782,8 +3837,9 @@ void wxScintilla::MarginSetText(int line, const wxString& text)
 // Get the text in the text margin for a line
 wxString wxScintilla::MarginGetText(int line) const
 {
+    // determine the string length
     const int msg = SCI_MARGINGETTEXT;
-    const long len = SendMsg(msg, line, 0);
+    const long len = SendMsg(msg, line, (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+1);
@@ -3815,8 +3871,9 @@ void wxScintilla::MarginSetStyles(int line, const wxString& styles)
 // Get the styles in the text margin for a line
 wxString wxScintilla::MarginGetStyles(int line) const
 {
+    // determine the string length
     const int msg = SCI_MARGINGETSTYLES;
-    const long len = SendMsg(msg, line, 0);
+    const long len = SendMsg(msg, line, (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+1);
@@ -3866,8 +3923,9 @@ void wxScintilla::AnnotationSetText(int line, const wxString& text)
 // Get the annotation text for a line
 wxString wxScintilla::AnnotationGetText(int line) const
 {
+    // determine the string length
     const int msg = SCI_ANNOTATIONGETTEXT;
-    const long len = SendMsg(msg, line, 0);
+    const long len = SendMsg(msg, line, (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+1);
@@ -3899,8 +3957,9 @@ void wxScintilla::AnnotationSetStyles(int line, const wxString& styles)
 // Get the annotation styles for a line
 wxString wxScintilla::AnnotationGetStyles(int line) const
 {
+    // determine the string length
     const int msg = SCI_ANNOTATIONGETSTYLES;
-    const long len = SendMsg(msg, line, 0);
+    const long len = SendMsg(msg, line, (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+1);
@@ -4416,6 +4475,7 @@ void wxScintilla::SetRepresentation(const wxString& encodedCharacter, const wxSt
 wxString wxScintilla::GetRepresentation(const wxString& encodedCharacter) const
 /* C::B end */
 {
+    // determine the string length
     const int msg = SCI_GETREPRESENTATION;
     const long len = SendMsg(msg, (sptr_t)(const char*)wx2sci(encodedCharacter), (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -4505,12 +4565,14 @@ void wxScintilla::SetLexerLanguage(const wxString& language)
 // Retrieve a 'property' value previously set with SetProperty.
 wxString wxScintilla::GetProperty(const wxString& key)
 {
-    const long len = SendMsg(SCI_GETPROPERTY, (sptr_t)(const char*)wx2sci(key), 0);
+    // determine the string length
+    const int msg = SCI_GETPROPERTY;
+    const long len = SendMsg(msg, (sptr_t)(const char*)wx2sci(key), (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+1);
     char* buf = (char*)mbuf.GetWriteBuf(len+1);
-    SendMsg(SCI_GETPROPERTY, (sptr_t)(const char*)wx2sci(key), (uptr_t)buf);
+    SendMsg(msg, (sptr_t)(const char*)wx2sci(key), (uptr_t)buf);
     mbuf.UngetWriteBuf(len);
     mbuf.AppendByte(0);
     return sci2wx(buf);
@@ -4520,12 +4582,14 @@ wxString wxScintilla::GetProperty(const wxString& key)
 // with '$()' variable replacement on returned buffer.
 wxString wxScintilla::GetPropertyExpanded(const wxString& key)
 {
-    const long len = SendMsg(SCI_GETPROPERTYEXPANDED, (sptr_t)(const char*)wx2sci(key), 0);
+    // determine the string length
+    const int msg = SCI_GETPROPERTYEXPANDED;
+    const long len = SendMsg(msg, (sptr_t)(const char*)wx2sci(key), (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+1);
     char* buf = (char*)mbuf.GetWriteBuf(len+1);
-    SendMsg(SCI_GETPROPERTYEXPANDED, (sptr_t)(const char*)wx2sci(key), (uptr_t)buf);
+    SendMsg(msg, (sptr_t)(const char*)wx2sci(key), (uptr_t)buf);
     mbuf.UngetWriteBuf(len);
     mbuf.AppendByte(0);
     return sci2wx(buf);
@@ -4553,6 +4617,7 @@ void* wxScintilla::PrivateLexerCall(int operation, void* pointer)
 // Retrieve a '\n' separated list of properties understood by the current lexer.
 wxString wxScintilla::PropertyNames() const
 {
+    // determine the string length
     const int msg = SCI_PROPERTYNAMES;
     const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -4574,6 +4639,7 @@ int wxScintilla::PropertyType(const wxString& name)
 // Describe a property.
 wxString wxScintilla::DescribeProperty(const wxString& name) const
 {
+    // determine the string length
     const int msg = SCI_DESCRIBEPROPERTY;
     const long len = SendMsg(msg, (sptr_t)(const char*)wx2sci(name), (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -4589,6 +4655,7 @@ wxString wxScintilla::DescribeProperty(const wxString& name) const
 // Retrieve a '\n' separated list of descriptions of the keyword sets understood by the current lexer.
 wxString wxScintilla::DescribeKeyWordSets() const
 {
+    // determine the string length
     const int msg = SCI_DESCRIBEKEYWORDSETS;
     const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -4660,6 +4727,7 @@ int wxScintilla::DistanceToSecondaryStyles() const
 // Get the set of base styles that can be extended with sub styles
 wxString wxScintilla::GetSubStyleBases() const
 {
+    // determine the string length
     const int msg = SCI_GETSUBSTYLEBASES;
     const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
@@ -4701,13 +4769,14 @@ void wxScintilla::LoadLexerLibrary(const wxString& path)
 // Retrieve the name of the lexer.
 wxString wxScintilla::GetLexerLanguage() const
 {
-    // determine the lexers language string length
-    const long len = SendMsg(SCI_GETLEXERLANGUAGE, 0, 0);
+    // determine the string length
+    const int msg = SCI_GETLEXERLANGUAGE;
+    const long len = SendMsg(msg, 0, (uptr_t)NULL);
     if (!len) return wxEmptyString;
 
     wxMemoryBuffer mbuf(len+2);
     char* buf = (char*)mbuf.GetWriteBuf(len+1);
-    SendMsg(SCI_GETLEXERLANGUAGE, 0, (uptr_t)buf);
+    SendMsg(msg, 0, (uptr_t)buf);
     mbuf.UngetWriteBuf(len);
     mbuf.AppendByte(0);
     return sci2wx(buf);
@@ -5792,7 +5861,7 @@ wxScintillaEvent::wxScintillaEvent(const wxScintillaEvent& event):
 /*static*/ wxVersionInfo wxScintilla::GetLibraryVersionInfo()
 {
     /* C::B -> Don't forget to change version number here and in wxscintilla.h at the top */
-    return wxVersionInfo("Scintilla", 3, 53, 0, "Scintilla 3.53");
+    return wxVersionInfo("Scintilla", 3, 54, 0, "Scintilla 3.54");
 }
 #endif
 /* C::B end */
