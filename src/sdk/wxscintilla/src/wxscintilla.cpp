@@ -1984,7 +1984,9 @@ void wxScintilla::SetTargetRange(int start, int end)
 }
 
 // Retrieve the text in the target.
+/* C::B begin */
 wxString wxScintilla::GetTargetText() const
+/* C::B end */
 {
     // determine the string length
     const int msg = SCI_GETTARGETTEXT;

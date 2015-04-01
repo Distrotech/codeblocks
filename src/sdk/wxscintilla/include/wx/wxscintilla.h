@@ -3599,7 +3599,9 @@ public:
     void SetTargetRange(int start, int end);
 
     // Retrieve the text in the target.
+/* C::B begin */
     wxString GetTargetText() const;
+/* C::B end */
 
     // Replace the target text with the argument text.
     // Text is counted so it can contain NULs.
