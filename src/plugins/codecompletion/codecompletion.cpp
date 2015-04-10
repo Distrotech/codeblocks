@@ -485,6 +485,7 @@ CodeCompletion::CodeCompletion() :
     m_CCAutoAddParentheses(true),
     m_CCDetectImplementation(false),
     m_CCEnableHeaders(false),
+    m_CCEnablePlatformCheck(true),
     m_SystemHeadersThreadCS(),
     m_DocHelper(this)
 {
@@ -1131,12 +1132,6 @@ void CodeCompletion::DoCodeCompleteIncludes(cbEditor* ed, int& tknStart, int tkn
 
     const wxString curFile(ed->GetFilename());
     const wxString curPath(wxFileName(curFile).GetPath());
-    wxArrayString buildTargets;
-
-    cbProject* project = m_NativeParser.GetProjectByEditor(ed);
-    ProjectFile* pf = project ? project->GetFileByFilename(curFile, false) : 0;
-    if (pf)
-        buildTargets = pf->buildTargets;
 
     FileType ft = FileTypeOf(ed->GetShortName());
     if ( ft != ftHeader && ft != ftSource) // only parse source/header files
@@ -1172,6 +1167,7 @@ void CodeCompletion::DoCodeCompleteIncludes(cbEditor* ed, int& tknStart, int tkn
     StringSet files;
 
     // #include < or #include "
+    cbProject* project = m_NativeParser.GetProjectByEditor(ed);
     {
         // since we are going to access the m_SystemHeadersMap, we add a locker here
         // here we collect all the header files names which is under "system include search dirs"
@@ -1202,6 +1198,11 @@ void CodeCompletion::DoCodeCompleteIncludes(cbEditor* ed, int& tknStart, int tkn
     // #include "
     if (project)
     {
+        wxArrayString buildTargets;
+        ProjectFile* pf = project ? project->GetFileByFilename(curFile, false) : 0;
+        if (pf)
+            buildTargets = pf->buildTargets;
+
         const wxArrayString localIncludeDirs = GetLocalIncludeDirs(project, buildTargets);
         for (FilesList::const_iterator it = project->GetFilesList().begin();
                                        it != project->GetFilesList().end(); ++it)
@@ -1512,11 +1513,23 @@ void CodeCompletion::DoAutocomplete(const CCToken& token, cbEditor* ed)
 wxArrayString CodeCompletion::GetLocalIncludeDirs(cbProject* project, const wxArrayString& buildTargets)
 {
     wxArrayString dirs;
+    // Do not try to operate include directories if the project is not for this platform
+    if (m_CCEnablePlatformCheck && !project->SupportsCurrentPlatform())
+        return dirs;
+
     const wxString prjPath = project->GetCommonTopLevelPath();
     GetAbsolutePath(prjPath, project->GetIncludeDirs(), dirs);
 
     for (size_t i = 0; i < buildTargets.GetCount(); ++i)
-        GetAbsolutePath(prjPath, project->GetBuildTarget(buildTargets[i])->GetIncludeDirs(), dirs);
+    {
+        ProjectBuildTarget* tgt = project->GetBuildTarget(buildTargets[i]);
+        // Do not try to operate include directories if the target is not for this platform
+        if (   !m_CCEnablePlatformCheck
+            || (m_CCEnablePlatformCheck && tgt->SupportsCurrentPlatform()) )
+        {
+            GetAbsolutePath(prjPath, tgt->GetIncludeDirs(), dirs);
+        }
+    }
 
     // if a path has prefix with the project's path, it is a local include search dir
     // other wise, it is a system level include search dir, we try to collect all the system dirs
@@ -1692,6 +1705,7 @@ void CodeCompletion::RereadOptions()
     m_CCDetectImplementation = cfg->ReadBool(_T("/detect_implementation"), false); //depends on auto_add_parentheses
     m_CCFillupChars          = cfg->Read(_T("/fillup_chars"),              wxEmptyString);
     m_CCEnableHeaders        = cfg->ReadBool(_T("/enable_headers"),        true);
+    m_CCEnablePlatformCheck  = cfg->ReadBool(_T("/platform_check"),        true);
 
     if (m_ToolBar)
     {
@@ -2512,6 +2526,9 @@ void CodeCompletion::OnParserStart(wxCommandEvent& event)
 {
     cbProject*                project = static_cast<cbProject*>(event.GetClientData());
     ParserCommon::ParserState state   = static_cast<ParserCommon::ParserState>(event.GetInt());
+    // Parser::OnBatchTimer will send this Parser Start event
+    // If it starts a full parsing(ptCreateParser), we should prepare some data for the header
+    // file clawler
     if (state == ParserCommon::ptCreateParser)
     {
         if (m_CCEnableHeaders)
@@ -2530,6 +2547,9 @@ void CodeCompletion::OnParserStart(wxCommandEvent& event)
 void CodeCompletion::OnParserEnd(wxCommandEvent& event)
 {
     ParserCommon::ParserState state = static_cast<ParserCommon::ParserState>(event.GetInt());
+
+    // ParserCommon::ptCreateParser means a full parsing stage is done, so it is the time to
+    // start the header file clawler
     if (state == ParserCommon::ptCreateParser)
     {
         if (   m_CCEnableHeaders
@@ -2955,38 +2975,42 @@ void CodeCompletion::OnFunction(cb_unused wxCommandEvent& event)
 
 /** Here is the expansion of how the two wxChoices are constructed.
  * for a file have such contents below
- *
- * Line  0     void g_func1(){
- * Line  1     }
- * Line  2
- * Line  3     void ClassA::func1(){
- * Line  4     }
- * Line  5
- * Line  6     void ClassA::func2(){
- * Line  7     }
- * Line  8
- * Line  9     void ClassB::func1(){
- * Line 10     }
- * Line 11
- * Line 12     void ClassB::func2(){
- * Line 13     }
- *
- * m_FunctionsScope is std::vector of length 5, capacity 8 = {
- * {StartLine = 0, EndLine = 1, ShortName = L"g_func1", Name = L"g_func1() : void", Scope = L"<global>"},
- * {StartLine = 3, EndLine = 4, ShortName = L"func1", Name = L"func1() : void", Scope = L"ClassA::"},
- * {StartLine = 6, EndLine = 7, ShortName = L"func2", Name = L"func2() : void", Scope = L"ClassA::"},
- * {StartLine = 9, EndLine = 10, ShortName = L"func1", Name = L"func1() : void", Scope = L"ClassB::"},
- * {StartLine = 12, EndLine = 13, ShortName = L"func2", Name = L"func2() : void", Scope = L"ClassB::"}}
- *
- * m_ScopeMarks is std::vector of length 3, capacity 4 = {0, 1, 3}, which is the start of Scope "<global>"
- * Scope "ClassA::" and Scope "ClassB::".
- *
- * Then we have wxChoice Scopes and Functions like below
- *
- *     <global>          ClassA::        ClassB::
- *       |- g_func1()      |- func1()      |- func1()
- *                         |- func2()      |- func2()
- *
+ \code{.cpp}
+   Line  0     void g_func1(){
+   Line  1     }
+   Line  2
+   Line  3     void ClassA::func1(){
+   Line  4     }
+   Line  5
+   Line  6     void ClassA::func2(){
+   Line  7     }
+   Line  8
+   Line  9     void ClassB::func1(){
+   Line 10     }
+   Line 11
+   Line 12     void ClassB::func2(){
+   Line 13     }
+ \endcode
+
+ The two key variable will be constructed like below
+ \verbatim
+   m_FunctionsScope is std::vector of length 5, capacity 8 = {
+   {StartLine = 0, EndLine = 1, ShortName = L"g_func1", Name = L"g_func1() : void", Scope = L"<global>"},
+   {StartLine = 3, EndLine = 4, ShortName = L"func1", Name = L"func1() : void", Scope = L"ClassA::"},
+   {StartLine = 6, EndLine = 7, ShortName = L"func2", Name = L"func2() : void", Scope = L"ClassA::"},
+   {StartLine = 9, EndLine = 10, ShortName = L"func1", Name = L"func1() : void", Scope = L"ClassB::"},
+   {StartLine = 12, EndLine = 13, ShortName = L"func2", Name = L"func2() : void", Scope = L"ClassB::"}}
+
+   m_ScopeMarks is std::vector of length 3, capacity 4 = {0, 1, 3}, which is the start of Scope "<global>"
+   Scope "ClassA::" and Scope "ClassB::".
+ \endverbatim
+
+  Then we have wxChoice Scopes and Functions like below
+ \verbatim
+       <global>          ClassA::        ClassB::
+         |- g_func1()      |- func1()      |- func1()
+                           |- func2()      |- func2()
+ \endverbatim
  */
 void CodeCompletion::ParseFunctionsAndFillToolbar()
 {

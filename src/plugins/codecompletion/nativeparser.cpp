@@ -120,8 +120,10 @@ namespace NativeParserHelper
     };
 }// namespace NativeParserHelper
 
+/** event id for the sequence project parsing timer */
 int idTimerParsingOneByOne = wxNewId();
 
+/** if this option is enabled, there will be many log messages when doing semantic match */
 bool s_DebugSmartSense = false;
 
 NativeParser::NativeParser() :
@@ -130,8 +132,6 @@ NativeParser::NativeParser() :
     m_ClassBrowserIsFloating(false),
     m_ImageList(nullptr),
     m_ParserPerWorkspace(false),
-    m_EditorStartWord(-1),
-    m_EditorEndWord(-1),
     m_LastAISearchWasGlobal(false),
     m_LastControl(nullptr),
     m_LastFunctionIndex(-1),
@@ -731,6 +731,7 @@ void NativeParser::RereadParserOptions()
         || opts.followGlobalIncludes != m_Parser->Options().followGlobalIncludes
         || opts.wantPreprocessor     != m_Parser->Options().wantPreprocessor
         || opts.parseComplexMacros   != m_Parser->Options().parseComplexMacros
+        || opts.platformCheck        != m_Parser->Options().platformCheck
         || m_ParserPerWorkspace      != parserPerWorkspace )
     {
         // important options changed... flag for reparsing
@@ -1058,8 +1059,12 @@ bool NativeParser::DoFullParsing(cbProject* project, ParserBase* parser)
     // add per-project dirs
     if (project)
     {
-        AddIncludeDirsToParser(GetProjectSearchDirs(project),
-                               project->GetBasePath(), parser);
+        if (   !parser->Options().platformCheck
+            || (parser->Options().platformCheck && project->SupportsCurrentPlatform()) )
+        {
+            AddIncludeDirsToParser(GetProjectSearchDirs(project),
+                                   project->GetBasePath(), parser);
+        }
     }
 
     StringList localSources;
@@ -1317,8 +1322,6 @@ size_t NativeParser::AI(TokenIdxSet&    result,
     if (pos < 0 || pos > searchData->control->GetLength())
         return 0;
 
-    m_EditorStartWord = searchData->control->WordStartPosition(pos, true);
-    m_EditorEndWord   = pos; //editor->GetControl()->WordEndPosition(pos, true);
     int line = searchData->control->LineFromPosition(pos);
 
     // Get the actual search text, such as "objA.m_aaa.m_bbb"
@@ -1362,7 +1365,7 @@ size_t NativeParser::AI(TokenIdxSet&    result,
         search_scope = &scope_result;
     else
     {
-        // add scopes
+        // add scopes, "tis" refer to "token index set"
         for (TokenIdxSet::const_iterator tis_it = scope_result.begin(); tis_it != scope_result.end(); ++tis_it)
             search_scope->insert(*tis_it);
     }
@@ -1544,41 +1547,6 @@ int NativeParser::FindCurrentFunctionStart(ccSearchData* searchData,
 
     m_LastResult = -1;
     return -1;
-}
-
-bool NativeParser::SkipWhitespaceForward(cbEditor* editor, int& pos)
-{
-    if (!editor)
-        return false;
-    wxChar ch = editor->GetControl()->GetCharAt(pos);
-    int len = editor->GetControl()->GetLength() - 1;
-    if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
-    {
-        while (pos < len && (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'))
-        {
-            ++pos;
-            ch = editor->GetControl()->GetCharAt(pos);
-        }
-        return true;
-    }
-    return false;
-}
-
-bool NativeParser::SkipWhitespaceBackward(cbEditor* editor, int& pos)
-{
-    if (!editor)
-        return false;
-    wxChar ch = editor->GetControl()->GetCharAt(pos);
-    if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
-    {
-        while (pos > 0 && (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'))
-        {
-            --pos;
-            ch = editor->GetControl()->GetCharAt(pos);
-        }
-        return true;
-    }
-    return false;
 }
 
 bool NativeParser::ParseUsingNamespace(ccSearchData* searchData, TokenIdxSet& search_scope, int caretPos)
@@ -1912,15 +1880,7 @@ bool NativeParser::AddCompilerDirs(cbProject* project, ParserBase* parser)
     // If there is no project, work on default compiler
     if (!project)
     {
-        Compiler* compiler = CompilerFactory::GetDefaultCompiler();
-        if (compiler)
-        {
-            // these dirs were the user's compiler include search dirs
-            AddIncludeDirsToParser(compiler->GetIncludeDirs(), wxEmptyString, parser);
-
-            if (compiler->GetID().Contains(_T("gcc")))
-                AddGCCCompilerDirs(compiler->GetMasterPath(), compiler->GetPrograms().CPP, parser);
-        }
+        AddCompilerIncludeDirsToParser(CompilerFactory::GetDefaultCompiler(), parser);
         TRACE(_T("NativeParser::AddCompilerDirs(): Leave"));
         return true;
     }
@@ -1937,7 +1897,11 @@ bool NativeParser::AddCompilerDirs(cbProject* project, ParserBase* parser)
         generator->Init(project);
 
     // get project include dirs
-    AddIncludeDirsToParser(project->GetIncludeDirs(), base, parser);
+    if (   !parser->Options().platformCheck
+        || (parser->Options().platformCheck && project->SupportsCurrentPlatform()) )
+    {
+        AddIncludeDirsToParser(project->GetIncludeDirs(), base, parser);
+    }
 
     // alloc array for project compiler AND "no. of targets" times target compilers
     int nCompilers = 1 + project->GetBuildTargetsCount();
@@ -1949,7 +1913,10 @@ bool NativeParser::AddCompilerDirs(cbProject* project, ParserBase* parser)
     for (int i = 0; i < project->GetBuildTargetsCount(); ++i)
     {
         ProjectBuildTarget* target = project->GetBuildTarget(i);
-        if (target && target->SupportsCurrentPlatform())
+        if (!target) continue;
+
+        if (   !parser->Options().platformCheck
+            || (parser->Options().platformCheck && target->SupportsCurrentPlatform()) )
         {
             // post-processed search dirs (from build scripts)
             if (compiler && generator)
@@ -1980,19 +1947,7 @@ bool NativeParser::AddCompilerDirs(cbProject* project, ParserBase* parser)
 
     // add compiler include dirs
     for (int idxCompiler = 0; idxCompiler < nCompilers; ++idxCompiler)
-    {
-        compiler = Compilers[idxCompiler];
-        if (!compiler) continue;
-
-        AddIncludeDirsToParser(compiler->GetIncludeDirs(), base, parser);
-
-        // find out which compiler, if gnu, do the special trick
-        // to find it's internal include paths
-        // but do only once per C::B session, thus cache for later calls
-        wxString CompilerID = compiler->GetID();
-        if (CompilerID.Contains(_T("gcc")))
-            AddGCCCompilerDirs(Compilers[idxCompiler]->GetMasterPath(), compiler->GetPrograms().CPP, parser);
-    } // end of while loop over the found compilers
+        AddCompilerIncludeDirsToParser(Compilers[idxCompiler], parser);
 
     if (!nCompilers)
         CCLogger::Get()->DebugLog(_T("NativeParser::AddCompilerDirs(): No compilers found!"));
@@ -2019,13 +1974,13 @@ bool NativeParser::AddCompilerPredefinedMacros(cbProject* project, ParserBase* p
     // gcc
     if (compilerId.Contains(_T("gcc")))
     {
-        if ( !AddCompilerPredefinedMacrosGCC(compilerId, project, defs) )
+        if ( !AddCompilerPredefinedMacrosGCC(compilerId, project, defs, parser) )
             return false;
     }
     // vc
     else if (compilerId.StartsWith(_T("msvc")))
     {
-        if ( !AddCompilerPredefinedMacrosVC(compilerId, defs) )
+        if ( !AddCompilerPredefinedMacrosVC(compilerId, defs, parser) )
           return false;
     }
 
@@ -2039,15 +1994,25 @@ bool NativeParser::AddCompilerPredefinedMacros(cbProject* project, ParserBase* p
     return true;
 }
 
-bool NativeParser::AddCompilerPredefinedMacrosGCC(const wxString& compilerId, cbProject* project, wxString& defs)
+bool NativeParser::AddCompilerPredefinedMacrosGCC(const wxString& compilerId, cbProject* project, wxString& defs, ParserBase* parser)
 {
     Compiler* compiler = CompilerFactory::GetCompiler(compilerId);
     if (!compiler)
         return false;
 
+    if (parser->Options().platformCheck && !compiler->SupportsCurrentPlatform())
+    {
+        TRACE(_T("NativeParser::AddCompilerPredefinedMacrosGCC: Not supported on current platform!"));
+        return false;
+    }
+
     wxString masterPath = compiler->GetMasterPath();
     Manager::Get()->GetMacrosManager()->ReplaceMacros(masterPath);
+#ifdef __WXMSW__
     const wxString cpp_compiler = masterPath + _T("\\bin\\") + compiler->GetPrograms().CPP;
+#else
+    const wxString cpp_compiler = masterPath + _T("/bin/") + compiler->GetPrograms().CPP;
+#endif
     if ( !wxFileName::FileExists(cpp_compiler) )
         return false;
 
@@ -2071,7 +2036,7 @@ bool NativeParser::AddCompilerPredefinedMacrosGCC(const wxString& compilerId, cb
         reentry = true;
         if ( wxExecute(cpp_compiler + args, output, wxEXEC_SYNC | wxEXEC_NODISABLE) == -1 )
         {
-            TRACE(_T("AddCompilerPredefinedMacrosGCC::wxExecute failed!"));
+            TRACE(_T("NativeParser::AddCompilerPredefinedMacrosGCC: wxExecute failed!"));
             reentry = false;
             return false;
         }
@@ -2085,7 +2050,7 @@ bool NativeParser::AddCompilerPredefinedMacrosGCC(const wxString& compilerId, cb
         for (size_t i = 0; i < output.Count(); ++i)
             gccDefs += output[i] + _T("\n");
 
-        CCLogger::Get()->DebugLog(_T("NativeParser::AddCompilerPredefinedMacrosGCC(): Caching predefined macros for compiler '")
+        CCLogger::Get()->DebugLog(_T("NativeParser::AddCompilerPredefinedMacrosGCC: Caching predefined macros for compiler '")
                                   + cpp_compiler + _T("':\n") + gccDefs);
     }
 
@@ -2138,89 +2103,106 @@ wxString NativeParser::GetCompilerUsingStandardGCC(const wxArrayString& compiler
     return standard;
 }
 
-bool NativeParser::AddCompilerPredefinedMacrosVC(const wxString& compilerId, wxString& defs)
+bool NativeParser::AddCompilerPredefinedMacrosVC(const wxString& compilerId, wxString& defs, ParserBase* parser)
 {
     static wxString vcDefs;
     static bool     firstExecute = true;
-    if (firstExecute)
+
+    if (!firstExecute)
     {
-        firstExecute = false;
-        Compiler* compiler = CompilerFactory::GetCompiler(compilerId);
-        if (!compiler)
-            return false;
+        defs = vcDefs;
+        return true;
+    }
 
-        wxString masterPath = compiler->GetMasterPath();
-        Manager::Get()->GetMacrosManager()->ReplaceMacros(masterPath);
-        const wxString c_compiler = masterPath + _T("\\bin\\") + compiler->GetPrograms().C;
-        if ( !wxFileName::FileExists(c_compiler) )
-            return false;
+    firstExecute = false;
+    Compiler* compiler = CompilerFactory::GetCompiler(compilerId);
+    if (!compiler)
+        return false;
 
-        static bool reentry = false;
-        if (reentry)
-            return false;
+    if (parser->Options().platformCheck && !compiler->SupportsCurrentPlatform())
+    {
+        TRACE(_T("NativeParser::AddCompilerPredefinedMacrosVC: Not supported on current platform!"));
+        return false;
+    }
 
-        wxArrayString output, error;
-        reentry = true;
-        // Just run the compiler which shows e.g.:
-        // "Microsoft (R) C/C++ Optimizing Compiler Version 12.00.8804, for x86"
-        // ...and extract platform information (32/64 bit) and compiler version (12) out of it
-        if ( wxExecute(c_compiler, output, error, wxEXEC_SYNC | wxEXEC_NODISABLE) == -1 )
-        {
-            TRACE(_T("AddCompilerPredefinedMacrosVC::wxExecute failed!"));
-            reentry = false;
-            return false;
-        }
+    wxString masterPath = compiler->GetMasterPath();
+    Manager::Get()->GetMacrosManager()->ReplaceMacros(masterPath);
+#ifdef __WXMSW__
+    const wxString c_compiler = masterPath + _T("\\bin\\") + compiler->GetPrograms().C;
+#else
+    const wxString c_compiler = masterPath + _T("/bin/") + compiler->GetPrograms().C;
+#endif
+    if ( !wxFileName::FileExists(c_compiler) )
+        return false;
+
+    static bool reentry = false;
+    if (reentry)
+        return false;
+
+    wxArrayString output, error;
+    reentry = true;
+    // Just run the compiler which shows e.g.:
+    // "Microsoft (R) C/C++ Optimizing Compiler Version 12.00.8804, for x86", or
+    // "Microsoft (R) C/C++ Optimizing Compiler Version 18.00.31101 for x86"
+    // ...and extract platform information (32/64 bit) and compiler version (12) out of it
+    if ( wxExecute(c_compiler, output, error, wxEXEC_SYNC | wxEXEC_NODISABLE) == -1 )
+    {
+        TRACE(_T("NativeParser::AddCompilerPredefinedMacrosVC: wxExecute failed!"));
         reentry = false;
+        return false;
+    }
+    reentry = false;
 
-        // wxExecute can be a long action and C::B might have been shutdown in the meantime...
-        if ( Manager::IsAppShuttingDown() )
-            return false;
+    // wxExecute can be a long action and C::B might have been shutdown in the meantime...
+    if ( Manager::IsAppShuttingDown() )
+        return false;
 
-        if (error.IsEmpty())
-        {
-            TRACE(_T("AddCompilerPredefinedMacrosVC:: Can't get pre-defined macros for MSVC."));
-            return false;
-        }
+    if (error.IsEmpty())
+    {
+        TRACE(_T("NativeParser::AddCompilerPredefinedMacrosVC: Can't get pre-defined macros for MSVC."));
+        return false;
+    }
 
-        wxString str = error[0];
-        wxString tmp(_T("Microsoft (R) "));
-        int pos = str.Find(tmp);
+    wxString compilerVersionInfo = error[0];
+    wxString tmp(_T("Microsoft (R) "));
+    int pos = compilerVersionInfo.Find(tmp);
+    if (pos != wxNOT_FOUND)
+    {
+        // in earlier versions of MSVC the compiler shows "32 bit" or "64 bit"
+        // in more recent MSVC version the architecture (x86 or x64) is shown instead
+        wxString bit = compilerVersionInfo.Mid(pos + tmp.Length(), 2);
+        if      ( (bit.IsSameAs(_T("32"))) || compilerVersionInfo.Contains(_T("x86")) )
+            defs += _T("#define _WIN32") _T("\n");
+        else if ( (bit.IsSameAs(_T("64"))) || compilerVersionInfo.Contains(_T("x64")) )
+            defs += _T("#define _WIN64") _T("\n");
+    }
+
+    tmp = _T("Compiler Version ");
+    pos = compilerVersionInfo.Find(tmp);
+    if (pos != wxNOT_FOUND)
+    {
+        wxString ver = compilerVersionInfo.Mid(pos + tmp.Length(), 4); // is i.e. 12.0
+        pos = ver.Find(_T('.'));
         if (pos != wxNOT_FOUND)
         {
-            wxString bit = str.Mid(pos + tmp.Length(), 2);
-            if (bit == _T("32"))
-                defs += _T("#define _WIN32") _T("\n");
-            else if (bit == _T("64"))
-                defs += _T("#define _WIN64") _T("\n");
-        }
-
-        tmp = _T("Compiler Version ");
-        pos = str.Find(tmp);
-        if (pos != wxNOT_FOUND)
-        {
-            wxString ver = str.Mid(pos + tmp.Length(), 4); // is i.e. 12.0
-            pos = ver.Find(_T('.'));
-            if (pos != wxNOT_FOUND)
-            {
-                // out of "12.0" make "1200" for the #define
-                ver[pos]     = ver[pos + 1]; // move the mintor version first number to the dot position
-                ver[pos + 1] = _T('0');      // add another zero at the end
-                defs += _T("#define _MSC_VER ") + ver;
-                // Known to now:
-                // MSVC++ 11.0 _MSC_VER = 1700 (Visual Studio 2012)
-                // MSVC++ 10.0 _MSC_VER = 1600 (Visual Studio 2010)
-                // MSVC++ 9.0  _MSC_VER = 1500 (Visual Studio 2008)
-                // MSVC++ 8.0  _MSC_VER = 1400 (Visual Studio 2005)
-                // MSVC++ 7.1  _MSC_VER = 1310 (Visual Studio 2003)
-                // MSVC++ 7.0  _MSC_VER = 1300
-                // MSVC++ 6.0  _MSC_VER = 1200
-                // MSVC++ 5.0  _MSC_VER = 1100
-            }
+            // out of "12.0" make "1200" for the #define
+            ver[pos]     = ver[pos + 1]; // move the mintor version first number to the dot position
+            ver[pos + 1] = _T('0');      // add another zero at the end
+            defs += _T("#define _MSC_VER ") + ver;
+            // Known to now (see https://en.wikipedia.org/wiki/Visual_C%2B%2B):
+            // MSVC++ 12.0 _MSC_VER = 1800 (Visual Studio 2013)
+            // MSVC++ 11.0 _MSC_VER = 1700 (Visual Studio 2012)
+            // MSVC++ 10.0 _MSC_VER = 1600 (Visual Studio 2010)
+            // MSVC++ 9.0  _MSC_VER = 1500 (Visual Studio 2008)
+            // MSVC++ 8.0  _MSC_VER = 1400 (Visual Studio 2005)
+            // MSVC++ 7.1  _MSC_VER = 1310 (Visual Studio 2003)
+            // MSVC++ 7.0  _MSC_VER = 1300
+            // MSVC++ 6.0  _MSC_VER = 1200
+            // MSVC++ 5.0  _MSC_VER = 1100
         }
     }
 
     defs = vcDefs;
-
     return true;
 }
 
@@ -2235,23 +2217,33 @@ bool NativeParser::AddProjectDefinedMacros(cbProject* project, ParserBase* parse
     TRACE(_T("NativeParser::AddProjectDefinedMacros(): Enter"));
 
     wxString compilerId = project->GetCompilerID();
-    wxString param;
+    wxString defineCompilerSwitch(wxEmptyString);
     if (compilerId.Contains(_T("gcc")))
-        param = _T("-D");
+        defineCompilerSwitch = _T("-D");
     else if (compilerId.StartsWith(_T("msvc")))
-        param = _T("/D");
+        defineCompilerSwitch = _T("/D");
 
-    if (param.IsEmpty())
+    if (defineCompilerSwitch.IsEmpty())
         return false; // no compiler options, return false
 
     wxString defs;
-    wxArrayString opts = project->GetCompilerOptions();
+    wxArrayString opts;
+    if (   !parser->Options().platformCheck
+        || (parser->Options().platformCheck && project->SupportsCurrentPlatform()) )
+    {
+        opts = project->GetCompilerOptions();
+    }
+
     ProjectBuildTarget* target = project->GetBuildTarget(project->GetActiveBuildTarget());
     if (target != NULL)
     {
-        wxArrayString targetOpts = target->GetCompilerOptions();
-        for (size_t i = 0; i < targetOpts.GetCount(); ++i)
-            opts.Add(targetOpts[i]);
+        if (   !parser->Options().platformCheck
+            || (parser->Options().platformCheck && target->SupportsCurrentPlatform()) )
+        {
+            wxArrayString targetOpts = target->GetCompilerOptions();
+            for (size_t i = 0; i < targetOpts.GetCount(); ++i)
+                opts.Add(targetOpts[i]);
+        }
     }
     // In case of virtual targets, collect the defines from all child targets.
     wxArrayString targets = project->GetExpandedVirtualBuildTargetGroup(project->GetActiveBuildTarget());
@@ -2260,9 +2252,13 @@ bool NativeParser::AddProjectDefinedMacros(cbProject* project, ParserBase* parse
         target = project->GetBuildTarget(targets[i]);
         if (target != NULL)
         {
-            wxArrayString targetOpts = target->GetCompilerOptions();
-            for (size_t j = 0; j < targetOpts.GetCount(); ++j)
-                opts.Add(targetOpts[j]);
+            if (   !parser->Options().platformCheck
+                || (parser->Options().platformCheck && target->SupportsCurrentPlatform()) )
+            {
+                wxArrayString targetOpts = target->GetCompilerOptions();
+                for (size_t j = 0; j < targetOpts.GetCount(); ++j)
+                    opts.Add(targetOpts[j]);
+            }
         }
     }
 
@@ -2270,10 +2266,10 @@ bool NativeParser::AddProjectDefinedMacros(cbProject* project, ParserBase* parse
     {
         wxString def = opts[i];
         Manager::Get()->GetMacrosManager()->ReplaceMacros(def);
-        if (!def.StartsWith(param))
+        if ( !def.StartsWith(defineCompilerSwitch) )
             continue;
 
-        def = def.Right(def.Length() - param.Length());
+        def = def.Right(def.Length() - defineCompilerSwitch.Length());
         int pos = def.Find(_T('='));
         if (pos != wxNOT_FOUND)
             def[pos] = _T(' ');
@@ -2288,6 +2284,24 @@ bool NativeParser::AddProjectDefinedMacros(cbProject* project, ParserBase* parse
         return false;
 
     return true;
+}
+
+void NativeParser::AddCompilerIncludeDirsToParser(const Compiler* compiler, ParserBase* parser)
+{
+    if (!compiler || !parser) return;
+
+    if (   !parser->Options().platformCheck
+        || (parser->Options().platformCheck && compiler->SupportsCurrentPlatform()) )
+    {
+        // these dirs were the user's compiler include search dirs
+        AddIncludeDirsToParser(compiler->GetIncludeDirs(), wxEmptyString, parser);
+
+        // find out which compiler, if gnu, do the special trick
+        // to find it's internal include paths
+        // but do only once per C::B session, thus cache for later calls
+        if (compiler->GetID().Contains(_T("gcc")))
+            AddGCCCompilerDirs(compiler->GetMasterPath(), compiler->GetPrograms().CPP, parser);
+    }
 }
 
 // These dirs are the built-in search dirs of the compiler itself (GCC).
@@ -2662,8 +2676,6 @@ void NativeParser::InitCCSearchVariables()
 {
     m_LastControl       = nullptr;
     m_LastFunctionIndex = -1;
-    m_EditorStartWord   = -1;
-    m_EditorEndWord     = -1;
     m_LastLine          = -1;
     m_LastResult        = -1;
     m_LastFile.Clear();

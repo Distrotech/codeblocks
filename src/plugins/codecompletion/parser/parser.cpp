@@ -193,6 +193,9 @@ void Parser::AddPredefinedMacros(const wxString& defs)
 
     m_PredefinedMacros << defs;
 
+    // ptUndefined means at least the cbproject is parsed already, this means the user try to
+    // reparse the project, since the predefined macro buffer is only collected when a new Parser
+    // is created
     if (m_ParserState == ParserCommon::ptUndefined)
         m_ParserState = ParserCommon::ptCreateParser;
 
@@ -203,6 +206,22 @@ void Parser::AddPredefinedMacros(const wxString& defs)
     }
 
     CC_LOCKER_TRACK_P_MTX_UNLOCK(ParserCommon::s_ParserMutex)
+}
+
+void Parser::ClearPredefinedMacros()
+{
+    CC_LOCKER_TRACK_P_MTX_LOCK(ParserCommon::s_ParserMutex)
+
+    m_LastPredefinedMacros = m_PredefinedMacros;
+    m_PredefinedMacros.Clear();
+
+    CC_LOCKER_TRACK_P_MTX_UNLOCK(ParserCommon::s_ParserMutex);
+}
+
+const wxString Parser::GetPredefinedMacros() const
+{
+    CCLogger::Get()->DebugLog(_T("Parser::GetPredefinedMacros()"));
+    return m_LastPredefinedMacros;
 }
 
 void Parser::AddBatchParse(const StringList& filenames)
@@ -264,6 +283,7 @@ bool Parser::Parse(const wxString& filename, bool isLocal, bool locked)
     opts.followGlobalIncludes  = m_Options.followGlobalIncludes;
     opts.wantPreprocessor      = m_Options.wantPreprocessor;
     opts.parseComplexMacros    = m_Options.parseComplexMacros;
+    opts.platformCheck         = m_Options.platformCheck;
 
     // whether to collect doxygen style documents.
     opts.storeDocumentation    = m_Options.storeDocumentation;
@@ -353,6 +373,7 @@ bool Parser::ParseBuffer(const wxString& buffer,   bool isLocal,
     opts.followGlobalIncludes = false;
     opts.wantPreprocessor     = m_Options.wantPreprocessor;
     opts.parseComplexMacros   = false;
+    opts.platformCheck        = true;
 
     opts.handleFunctions      = true;   // enabled to support function ptr in local block
 
@@ -380,6 +401,7 @@ bool Parser::ParseBufferForFunctions(const wxString& buffer)
     opts.followGlobalIncludes = false;
     opts.wantPreprocessor     = m_Options.wantPreprocessor;
     opts.parseComplexMacros   = m_Options.parseComplexMacros;
+    opts.platformCheck        = m_Options.platformCheck;
 
     opts.handleFunctions      = true;
 
@@ -406,6 +428,7 @@ bool Parser::ParseBufferForNamespaces(const wxString& buffer, NameSpaceVec& resu
     opts.followGlobalIncludes = false;
     opts.wantPreprocessor     = m_Options.wantPreprocessor;
     opts.parseComplexMacros   = false;
+    opts.platformCheck        = true;
 
     opts.storeDocumentation   = m_Options.storeDocumentation;
 
@@ -430,6 +453,7 @@ bool Parser::ParseBufferForUsingNamespace(const wxString& buffer, wxArrayString&
     opts.followGlobalIncludes = false;
     opts.wantPreprocessor     = m_Options.wantPreprocessor;
     opts.parseComplexMacros   = false;
+    opts.platformCheck        = true;
     opts.bufferSkipBlocks     = bufferSkipBlocks;
 
     opts.storeDocumentation   = m_Options.storeDocumentation;
@@ -612,8 +636,14 @@ void Parser::OnAllThreadsDone(CodeBlocksEvent& event)
 
         CC_LOCKER_TRACK_TT_MTX_UNLOCK(s_TokenTreeMutex)
 
+        // tell the parent(native parser and the code completion plugin) that some tasks are done
+        // and the task pool switches to idle mode.
         ProcessParserEvent(m_ParserState, ParserCommon::idParserEnd, parseEndLog);
+
+        // reset the parser state
         m_ParserState = ParserCommon::ptUndefined;
+
+        // the current parser is not parsing any files, so set the static pointer to NULL
         ParserCommon::s_CurrentParser = nullptr;
         TRACE(_T("Parser::OnAllThreadsDone(): Post a PARSER_END event"));
     }
@@ -826,6 +856,7 @@ void Parser::ReadOptions()
         cfg->Write(_T("/parser_follow_global_includes"), true);
         cfg->Write(_T("/want_preprocessor"),             true);
         cfg->Write(_T("/parse_complex_macros"),          true);
+        cfg->Write(_T("/platform_check"),                true);
     }
 
     // Page "Code Completion"
@@ -842,6 +873,7 @@ void Parser::ReadOptions()
     m_Options.followGlobalIncludes = cfg->ReadBool(_T("/parser_follow_global_includes"), true);
     m_Options.wantPreprocessor     = cfg->ReadBool(_T("/want_preprocessor"),             true);
     m_Options.parseComplexMacros   = cfg->ReadBool(_T("/parse_complex_macros"),          true);
+    m_Options.platformCheck        = cfg->ReadBool(_T("/platform_check"),                true);
 
     // Page "Symbol browser"
     m_BrowserOptions.showInheritance = cfg->ReadBool(_T("/browser_show_inheritance"),    false);
@@ -873,6 +905,7 @@ void Parser::WriteOptions()
     cfg->Write(_T("/parser_follow_global_includes"), m_Options.followGlobalIncludes);
     cfg->Write(_T("/want_preprocessor"),             m_Options.wantPreprocessor);
     cfg->Write(_T("/parse_complex_macros"),          m_Options.parseComplexMacros);
+    cfg->Write(_T("/platform_check"),                m_Options.platformCheck);
 
     // Page "Symbol browser"
     cfg->Write(_T("/browser_show_inheritance"),      m_BrowserOptions.showInheritance);

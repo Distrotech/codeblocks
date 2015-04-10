@@ -77,6 +77,7 @@ struct ParserOptions
         useSmartSense(true),
         whileTyping(true),
         parseComplexMacros(true),
+        platformCheck(true),
         storeDocumentation(true)
     {}
 
@@ -87,6 +88,7 @@ struct ParserOptions
     bool useSmartSense;        /// use real AI(scope sequence match) or not(plain text match)
     bool whileTyping;          /// reparse the active editor while editing
     bool parseComplexMacros;   /// this will let the Tokenizer to recursive expand macros
+    bool platformCheck;        /// this will check for the platform of the project/target when adding include folders to the parser
     bool storeDocumentation;   /// should tokenizer detect and store doxygen documentation?
 };
 
@@ -121,16 +123,18 @@ public:
     virtual bool     Done()          { return true; }
     virtual wxString NotDoneReason() { return wxEmptyString; }
 
-    virtual TokenTree* GetTokenTree(); // allow other implementations of derived (dummy) classes
+    virtual TokenTree* GetTokenTree() const; // allow other implementations of derived (dummy) classes
     TokenTree* GetTempTokenTree()    { return m_TempTokenTree; }
+
+    virtual const wxString GetPredefinedMacros() const { return wxEmptyString; } // allow other implementations of derived (dummy) classes
 
     /** add a directory to the Parser's include path database */
     void                 AddIncludeDir(const wxString& dir);
     const wxArrayString& GetIncludeDirs() const { return m_IncludeDirs; }
     wxString             GetFullFileName(const wxString& src, const wxString& tgt, bool isGlobal);
-    /** it mimic what a compiler try to find an include header files, if the firstonly option is
-     * true, it will return the first found header file, otherwise, all the Parser's include path database
-     * will be searched.
+    /** it mimics what a compiler does to find an include header files, if the firstonly option is
+     * true, it will return the first found header file, otherwise, the complete database of the
+     * Parser's include paths will be searched.
      */
     wxArrayString   FindFileInIncludeDirs(const wxString& file, bool firstonly = false);
 
@@ -170,12 +174,12 @@ protected:
 
 
 private:
-    /** wxString -> wxString map*/
+    /** wxString -> wxString map */
     SearchTree<wxString> m_GlobalIncludes;
 
     /** the include directories can be either three kinds below:
      * 1, compiler's default search paths, e.g. E:\gcc\include
-     * 2, your project's common folder, e.g. the folder where you put the cbp file in
+     * 2, project's common folders, e.g. the folder where you put the cbp file in
      * 3, the compiler include search paths defined in the cbp, like: E:\wx2.8\msw\include
      */
     wxArrayString        m_IncludeDirs;
