@@ -1061,8 +1061,7 @@ void ParserThread::DoParse()
                             {
                                 // pattern: AAA (* BBB) (...)
                                 // where peek is (...) and arg is (* BBB)
-                                arg.RemoveLast();
-                                arg.Remove(0, pos+1).Trim(false);
+
                                 // NOTE: support func ptr in local block, show return type.
                                 // if (!m_Options.useBuffer || m_Options.bufferSkipBlocks)
                                 //     HandleFunction(arg); // function
@@ -1095,8 +1094,6 @@ void ParserThread::DoParse()
                         if (pos != wxNOT_FOUND)
                         {
                             wxString arg = token;
-                            arg.RemoveLast();
-                            arg.Remove(0, pos+1).Trim(false);
                             HandleFunction(/*function name*/ arg,
                                            /*isOperator*/    false,
                                            /*isPointer*/     true);
@@ -1116,8 +1113,6 @@ void ParserThread::DoParse()
                         if (peek.GetChar(1) == ParserConsts::ptr)
                         {
                             wxString arg = peek;
-                            arg.RemoveLast(); // remove ")"
-                            arg.Remove(0,2).Trim(false); // remove "(* "
                             m_Str << token;
                             token = m_Tokenizer.GetToken(); //consume the peek
                             // BBB is now the function ptr's name
@@ -2219,7 +2214,7 @@ void ParserThread::HandleClass(EClassType ct)
     m_Tokenizer.SetState(oldState);
 }
 
-void ParserThread::HandleFunction(const wxString& name, bool isOperator, bool isPointer)
+void ParserThread::HandleFunction(wxString& name, bool isOperator, bool isPointer)
 {
     TRACE(_T("HandleFunction() : Adding function '")+name+_T("': m_Str='")+m_Str+_T("'"));
     int lineNr = m_Tokenizer.GetLineNumber();
@@ -2230,9 +2225,19 @@ void ParserThread::HandleFunction(const wxString& name, bool isOperator, bool is
     // special case for function pointers
     if (isPointer)
     {
+        int pos = name.find(ParserConsts::ptr);
+
         // pattern: m_Str AAA (*BBB) (...);
-        if (peek == ParserConsts::semicolon)
+        if (peek == ParserConsts::semicolon && pos != wxNOT_FOUND)
         {
+            name.RemoveLast();  // remove ")"
+            name.Remove(0, pos+1).Trim(false); // remove "(* "
+
+            // pattern: m_Str AAA (*BBB[X][Y]) (...);
+            pos = name.find(ParserConsts::oparray_chr);
+            if (pos != wxNOT_FOUND)
+                name.Remove(pos);
+
             TRACE(_T("HandleFunction() : Add token name='")+name+_T("', args='")+args+_T("', return type='") + m_Str+ _T("'"));
             Token* newToken =  DoAddToken(tkFunction, name, lineNr, 0, 0, args);
             if (newToken)
@@ -2802,6 +2807,8 @@ void ParserThread::HandleTypedef()
     //
     // even harder:
     // typedef void (*dMessageFunction)(int errnum, const char *msg, va_list ap);
+    // or
+    // typedef void (MyClass::*Function)(int);
 
     size_t lineNr = m_Tokenizer.GetLineNumber();
     bool is_function_pointer = false;
@@ -2822,7 +2829,13 @@ void ParserThread::HandleTypedef()
 
         TRACE(_T("HandleTypedef() : token=%s, peek=%s"), token.wx_str(), peek.wx_str());
         if (token.IsEmpty() || token == ParserConsts::semicolon)
+        {
+            m_Tokenizer.UngetToken();   // NOTE: preserve ';' for the next GetToken();
             break;
+        }
+
+        if (token == ParserConsts::kw_const)
+            continue;
 
         if (   token == ParserConsts::kw_class
             || token == ParserConsts::kw_struct
@@ -2904,6 +2917,7 @@ void ParserThread::HandleTypedef()
                     token.Remove(0, 1); // remove opening parenthesis
                 }
                 args = peek;
+                m_Tokenizer.GetToken(); // eat args
 
                 TRACE(_("HandleTypedef() : Pushing component='%s' (typedef args='%s')"), token.Trim(true).Trim(false).wx_str(), args.wx_str());
                 components.push(token.Trim(true).Trim(false));
