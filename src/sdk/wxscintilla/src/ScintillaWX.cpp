@@ -344,7 +344,8 @@ void ScintillaWX::Initialise() {
 void ScintillaWX::Finalise() {
     ScintillaBase::Finalise();
 /* C::B begin */
-    // SetTicking function is deprecated since we implement fine grained timers
+    // The following function is deprecated since we implement fine grained timers
+    // SetTicking(false);
 /* C::B end */
     SetIdle(false);
     DestroySystemCaret();
@@ -408,7 +409,9 @@ bool ScintillaWX::SetIdle(bool on) {
 }
 
 /* C::B begin */
-    // SetTicking function is deprecated since we implement fine grained timers
+    // The following function is deprecated since we implement fine grained timers
+// void ScintillaWX::SetTicking(bool on) {
+// }
 /* C::B end */
 
 
@@ -698,11 +701,14 @@ void ScintillaWX::CopyToClipboard(const SelectionText& st) {
         wxString text = wxTextBuffer::Translate(sci2wx(st.Data(), st.Length()));
 
 /* C::B begin */
+        // Leave the following lines that way to enable compilation with GCC 3.3.3
+        wxDataFormat dataFormat(wxString(wxT("application/x-cbrectdata")));
+        wxCustomDataObject* rectData = new wxCustomDataObject(dataFormat);
+
         // composite object will hold "plain text" for pasting in other programs and a custom
         // object for local use that remembers what kind of selection was made (stream or
         // rectangular).
         wxDataObjectComposite* obj = new wxDataObjectComposite();
-        wxCustomDataObject* rectData = new wxCustomDataObject(wxDataFormat(wxString(wxT("application/x-cbrectdata"))));
 
         char* buffer = new char[st.LengthWithTerminator()];
         buffer[0] = (st.rectangular)? (char)1 : (char)0;
@@ -1116,6 +1122,7 @@ void ScintillaWX::DoLoseFocus(){
     DestroySystemCaret();
 /* C::B begin */
     // SetTicking function is deprecated since we implement fine grained timers
+    // SetTicking(false);
 /* C::B end */
 }
 
@@ -1127,6 +1134,7 @@ void ScintillaWX::DoGainFocus(){
     CreateSystemCaret();
 /* C::B begin */
     // SetTicking function is deprecated since we implement fine grained timers
+    // SetTicking(true);
 /* C::B end */
 }
 
