@@ -6292,6 +6292,7 @@ sptr_t Editor::WndProc(unsigned int iMessage, uptr_t wParam, sptr_t lParam) {
 		return TextWidth(static_cast<int>(wParam), CharPtrFromSPtr(lParam));
 
 	case SCI_TEXTHEIGHT:
+		RefreshStyleData();
 		return vs.lineHeight;
 
 	case SCI_SETENDATLASTLINE:
