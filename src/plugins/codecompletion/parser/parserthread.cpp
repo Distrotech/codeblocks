@@ -102,6 +102,7 @@ namespace ParserConsts
     const wxChar   dash_chr        (_T('-'));
     const wxString ptr             (_T("*"));
     const wxChar   ptr_chr         (_T('*'));
+    const wxString ref             (_T("&"));
     const wxChar   ref_chr         (_T('&'));
     const wxString comma           (_T(","));
     const wxChar   comma_chr       (_T(','));
@@ -139,6 +140,7 @@ namespace ParserConsts
     const wxString spaced_colon    (_T(" : "));
     const wxString kw__C_          (_T("\"C\""));
     const wxString kw_for          (_T("for"));
+    const wxString kw_try          (_T("try"));
     // length: 4
     const wxString kw___at         (_T("__at"));
     const wxString kw_else         (_T("else"));
@@ -425,19 +427,31 @@ bool ParserThread::ParseBufferForUsingNamespace(const wxString& buffer, wxArrayS
         }
         else if (token==ParserConsts::kw_using)
         {
+            // there are some kinds of using keyword usage
+            // (1) using namespace A;
+            // (2) using namespace A::B; // where B is a namespace
+            // (3) using A::B;           // where B is NOT a namespace
+            // (4) using A = B;          // doesn't import anything, so we don't handle this here
+            token = m_Tokenizer.GetToken();
             wxString peek = m_Tokenizer.PeekToken();
-            if (peek == ParserConsts::kw_namespace)
+            if (token == ParserConsts::kw_namespace || peek == ParserConsts::dcolon)
             {
-                // ok
-                m_Tokenizer.GetToken(); // eat namespace
-                while (IS_ALIVE) // support full namespaces
+                if (peek == ParserConsts::dcolon) // using declaration, such as case (3)
+                    m_Str << token; // push the A to the m_Str(type stack)
+                else //handling the case (1) and (2)
                 {
-                    m_Str << m_Tokenizer.GetToken();
-                    if (m_Tokenizer.PeekToken() == ParserConsts::dcolon)
+                    // using directive
+                    while (IS_ALIVE) // support full namespaces
+                    {
                         m_Str << m_Tokenizer.GetToken();
-                    else
-                        break;
+                        if (m_Tokenizer.PeekToken() == ParserConsts::dcolon)
+                            m_Str << m_Tokenizer.GetToken();
+                        else
+                            break;
+                    }
                 }
+                // m_Str must end with a namespace for CC to work
+                // now, m_Str contains "A" in case (1) and (3), and "A::B" in case (2)
                 if (!m_Str.IsEmpty())
                     result.Add(m_Str);
                 m_Str.Clear();
@@ -760,11 +774,18 @@ void ParserThread::DoParse()
             }
             else if (token==ParserConsts::kw_using)
             {
+                // there are some kinds of using keyword usage
+                // (1) using namespace A;
+                // (2) using namespace A::B;
+                // (3) using A::B;
+                // (4) using A = B;
+                TokenizerState oldState2 = m_Tokenizer.GetState();
+                m_Tokenizer.SetState(tsSkipNone); // don't want to skip equals
+                token = m_Tokenizer.GetToken();
                 wxString peek = m_Tokenizer.PeekToken();
+                m_Tokenizer.SetState(oldState2);
                 if (peek == ParserConsts::kw_namespace)
                 {
-                    // ok
-                    m_Tokenizer.GetToken(); // eat namespace
                     while (true) // support full namespaces
                     {
                         m_Str << m_Tokenizer.GetToken();
@@ -799,6 +820,34 @@ void ParserThread::DoParse()
                             foundNsToken->m_TokenKind = tkNamespace;
                         }
                         m_UsedNamespacesIds.insert(foundNsToken->m_Index);
+                    }
+                }
+                else if (peek == ParserConsts::equals)
+                {
+                    // Type alias pattern: using AAA = BBB::CCC;
+                    // Handle same as a typedef
+                    wxString args;
+                    size_t lineNr = m_Tokenizer.GetLineNumber();
+                    Token* tdef = DoAddToken(tkTypedef, token, lineNr, 0, 0, args);
+
+                    m_Tokenizer.GetToken(); // eat equals
+                    wxString type;
+
+                    while (IS_ALIVE) // support full namespaces
+                    {
+                        type << m_Tokenizer.GetToken();
+                        if (m_Tokenizer.PeekToken() == ParserConsts::dcolon)
+                            type << m_Tokenizer.GetToken();
+                        else
+                            break;
+                    }
+
+                    if (tdef)
+                    {
+                        tdef->m_FullType = type;
+                        tdef->m_BaseType = type;
+                        if (tdef->IsValidAncestor(type))
+                            tdef->m_AncestorsString = type;
                     }
                 }
                 else
@@ -2332,6 +2381,40 @@ void ParserThread::HandleFunction(wxString& name, bool isOperator, bool isPointe
                 // Handle something like: std::string MyClass::MyMethod() throw(std::exception)
                 wxString arg = m_Tokenizer.GetToken(); // eat args ()
             }
+            else if (peek == ParserConsts::kw_try)
+            {
+                // function-try-block pattern: AAA(...)try{}catch{}
+                m_Tokenizer.GetToken(); // eat the try keyword
+
+                if (m_Tokenizer.PeekToken() == ParserConsts::colon)
+                {
+                        // skip ctor initialization list
+                        SkipToOneOfChars(ParserConsts::opbrace);
+                        m_Tokenizer.UngetToken(); // leave brace there
+                }
+                if (m_Tokenizer.PeekToken() == ParserConsts::opbrace)
+                {
+                    isImpl = true;
+                    m_Tokenizer.GetToken(); // eat {
+                    lineStart = m_Tokenizer.GetLineNumber();
+                    SkipBlock(); // skip to matching }
+
+                    while (m_Tokenizer.PeekToken() == ParserConsts::kw_catch)
+                    {
+                        m_Tokenizer.GetToken(); // eat catch
+                        m_Tokenizer.GetToken(); // eat catch args
+
+                        if (m_Tokenizer.PeekToken() == ParserConsts::opbrace)
+                        {
+                            m_Tokenizer.GetToken(); // eat {
+                            SkipBlock(); // skip to matching }
+                        }
+                    }
+
+                    lineEnd = m_Tokenizer.GetLineNumber();
+                    break;
+                }
+            }
             else
             {
                 TRACE(_T("HandleFunction() : Possible macro '%s' in function '%s' (file name='%s', line numer %d)."),
@@ -2853,7 +2936,7 @@ void ParserThread::HandleTypedef()
             token = m_LastUnnamedTokenName;
             TRACE(_("HandleTypedef() : After HandleClass m_LastUnnamedTokenName='%s'"), m_LastUnnamedTokenName.wx_str());
         }
-        else if (token == ParserConsts::ptr)
+        else if (token == ParserConsts::ptr || token == ParserConsts::ref)
         {
             m_PointerOrRef << token;
             continue;
@@ -2961,17 +3044,25 @@ void ParserThread::HandleTypedef()
     // now get the type
     wxString ancestor;
     wxString alias;
+
+    // handle the special cases below, a template type parameter is used in typedef
+    // template<typename _Tp>
+    // class c2
+    // {
+    //    public:
+    //        typedef _Tp  alise;
+    //
+    // };
     if (   (components.size() == 2)
         && m_LastParent
         && m_LastParent->m_TokenKind == tkClass
-        && (!m_LastParent->m_TemplateType.IsEmpty()) )
+        && (!m_LastParent->m_TemplateType.IsEmpty())
+        && m_LastParent->m_TemplateType.Index(components.front()) != wxNOT_FOUND )
     {
         wxArrayString templateType = m_LastParent->m_TemplateType;
-        wxString type = components.front();
+        alias = components.front();
         components.pop();
         ancestor = components.front();
-        if (templateType.Index(type) != wxNOT_FOUND)
-            alias = type;
     }
     else
     {

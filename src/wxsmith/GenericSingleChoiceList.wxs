@@ -7,7 +7,7 @@
 				<object class="wxStaticText" name="ID_STATICTEXT1" variable="lblDescr" member="yes">
 					<label>Description</label>
 				</object>
-				<flag>wxALL|wxEXPAND|wxALIGN_LEFT|wxALIGN_TOP</flag>
+				<flag>wxALL|wxEXPAND</flag>
 				<border>8</border>
 			</object>
 			<object class="sizeritem">
@@ -19,12 +19,12 @@
 							<size>232,131</size>
 							<style>wxLB_SINGLE|wxLB_HSCROLL</style>
 						</object>
-						<flag>wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+						<flag>wxALL|wxEXPAND</flag>
 						<border>4</border>
 						<option>1</option>
 					</object>
 				</object>
-				<flag>wxALL|wxEXPAND|wxFIXED_MINSIZE|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL</flag>
+				<flag>wxALL|wxEXPAND|wxFIXED_MINSIZE</flag>
 				<border>8</border>
 				<option>1</option>
 			</object>

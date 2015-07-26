@@ -109,33 +109,33 @@ CCTestFrame::CCTestFrame(const wxString& main_file) :
     bsz_misc = new wxBoxSizer(wxVERTICAL);
     bsz_include = new wxBoxSizer(wxVERTICAL);
     lbl_include = new wxStaticText(this, wxID_ANY, _("Add include directories to search for files here (one directory per line):"), wxDefaultPosition, wxDefaultSize, 0, _T("wxID_ANY"));
-    bsz_include->Add(lbl_include, 0, wxBOTTOM|wxEXPAND|wxALIGN_LEFT|wxALIGN_BOTTOM, 5);
+    bsz_include->Add(lbl_include, 0, wxBOTTOM|wxEXPAND, 5);
     m_IncludeCtrl = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE, wxDefaultValidator, _T("wxID_ANY"));
     m_IncludeCtrl->SetMinSize(wxSize(-1,60));
-    bsz_include->Add(m_IncludeCtrl, 0, wxEXPAND|wxALIGN_LEFT|wxALIGN_BOTTOM, 5);
-    bsz_misc->Add(bsz_include, 0, wxBOTTOM|wxEXPAND|wxALIGN_LEFT|wxALIGN_BOTTOM, 5);
-    bsz_main->Add(bsz_misc, 0, wxTOP|wxLEFT|wxRIGHT|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    bsz_include->Add(m_IncludeCtrl, 0, wxEXPAND, 5);
+    bsz_misc->Add(bsz_include, 0, wxBOTTOM|wxEXPAND, 5);
+    bsz_main->Add(bsz_misc, 0, wxTOP|wxLEFT|wxRIGHT|wxEXPAND, 5);
     bsz_search_tree = new wxBoxSizer(wxHORIZONTAL);
     m_DoTreeCtrl = new wxCheckBox(this, wxID_ANY, _("Enable creation of parser\'s internal search tree (might get HUGE!!!)"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("wxID_ANY"));
     m_DoTreeCtrl->SetValue(false);
-    bsz_search_tree->Add(m_DoTreeCtrl, 0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL, 5);
+    bsz_search_tree->Add(m_DoTreeCtrl, 0, wxALIGN_CENTER_VERTICAL, 5);
     m_DoHideCtrl = new wxCheckBox(this, ID_CHK_HIDE, _("Hide frame"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("ID_CHK_HIDE"));
     m_DoHideCtrl->SetValue(true);
-    bsz_search_tree->Add(m_DoHideCtrl, 0, wxLEFT|wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL, 5);
-    bsz_search_tree->Add(-1,-1,1, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    bsz_search_tree->Add(m_DoHideCtrl, 0, wxLEFT|wxALIGN_CENTER_VERTICAL, 5);
+    bsz_search_tree->Add(-1,-1,1, wxALIGN_CENTER_VERTICAL, 5);
     btnTestSingle = new wxButton(this, wxID_TEST_SINGLE, _("Test Single"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("wxID_TEST_SINGLE"));
-    bsz_search_tree->Add(btnTestSingle, 1, wxALL|wxALIGN_LEFT|wxALIGN_BOTTOM, 5);
+    bsz_search_tree->Add(btnTestSingle, 1, wxALL|wxALIGN_BOTTOM, 5);
     btnParse = new wxButton(this, wxID_PARSE, _("Test All"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("wxID_PARSE"));
-    bsz_search_tree->Add(btnParse, 1, wxALIGN_RIGHT|wxALIGN_CENTER_VERTICAL, 5);
+    bsz_search_tree->Add(btnParse, 1, wxALIGN_CENTER_VERTICAL, 5);
     btnPrintTree = new wxButton(this, wxID_PRINT_TREE, _("Print Tree"), wxDefaultPosition, wxDefaultSize, 0, wxDefaultValidator, _T("wxID_PRINT_TREE"));
-    bsz_search_tree->Add(btnPrintTree, 1, wxALL|wxALIGN_LEFT|wxALIGN_BOTTOM, 5);
-    bsz_main->Add(bsz_search_tree, 0, wxTOP|wxLEFT|wxRIGHT|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    bsz_search_tree->Add(btnPrintTree, 1, wxALL|wxALIGN_BOTTOM, 5);
+    bsz_main->Add(bsz_search_tree, 0, wxTOP|wxLEFT|wxRIGHT|wxEXPAND, 5);
     bsz_parser = new wxBoxSizer(wxVERTICAL);
     m_ParserCtrl = new wxNotebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, 0, _T("wxID_ANY"));
     panParserInput = new wxPanel(m_ParserCtrl, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL, _T("wxID_ANY"));
     bszParserInput = new wxBoxSizer(wxVERTICAL);
     m_Control = new wxScintilla(panParserInput,wxID_ANY,wxDefaultPosition,wxDefaultSize);
-    bszParserInput->Add(m_Control, 1, wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    bszParserInput->Add(m_Control, 1, wxEXPAND, 5);
     panParserInput->SetSizer(bszParserInput);
     bszParserInput->Fit(panParserInput);
     bszParserInput->SetSizeHints(panParserInput);
@@ -143,7 +143,7 @@ CCTestFrame::CCTestFrame(const wxString& main_file) :
     bszParserOutput = new wxBoxSizer(wxVERTICAL);
     m_LogCtrl = new wxTextCtrl(panParserOutput, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_RICH2|wxHSCROLL, wxDefaultValidator, _T("wxID_ANY"));
     m_LogCtrl->SetMinSize(wxSize(640,250));
-    bszParserOutput->Add(m_LogCtrl, 1, wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    bszParserOutput->Add(m_LogCtrl, 1, wxEXPAND, 5);
     panParserOutput->SetSizer(bszParserOutput);
     bszParserOutput->Fit(panParserOutput);
     bszParserOutput->SetSizeHints(panParserOutput);
@@ -151,14 +151,14 @@ CCTestFrame::CCTestFrame(const wxString& main_file) :
     bszParserSearchTree = new wxBoxSizer(wxVERTICAL);
     m_TreeCtrl = new wxTextCtrl(panParserSearchTree, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_RICH2|wxHSCROLL, wxDefaultValidator, _T("wxID_ANY"));
     m_TreeCtrl->SetMinSize(wxSize(640,150));
-    bszParserSearchTree->Add(m_TreeCtrl, 1, wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    bszParserSearchTree->Add(m_TreeCtrl, 1, wxEXPAND, 5);
     panParserSearchTree->SetSizer(bszParserSearchTree);
     bszParserSearchTree->Fit(panParserSearchTree);
     bszParserSearchTree->SetSizeHints(panParserSearchTree);
     panCompletionTest = new wxPanel(m_ParserCtrl, wxID_ANY, wxPoint(274,5), wxDefaultSize, wxTAB_TRAVERSAL, _T("wxID_ANY"));
     bszCompletionTest = new wxBoxSizer(wxHORIZONTAL);
     m_CompletionTestCtrl = new wxTextCtrl(panCompletionTest, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_RICH2|wxHSCROLL, wxDefaultValidator, _T("wxID_ANY"));
-    bszCompletionTest->Add(m_CompletionTestCtrl, 1, wxALL|wxEXPAND|wxALIGN_LEFT|wxALIGN_BOTTOM, 5);
+    bszCompletionTest->Add(m_CompletionTestCtrl, 1, wxALL|wxEXPAND, 5);
     panCompletionTest->SetSizer(bszCompletionTest);
     bszCompletionTest->Fit(panCompletionTest);
     bszCompletionTest->SetSizeHints(panCompletionTest);
@@ -166,8 +166,8 @@ CCTestFrame::CCTestFrame(const wxString& main_file) :
     m_ParserCtrl->AddPage(panParserOutput, _("Parser output"), false);
     m_ParserCtrl->AddPage(panParserSearchTree, _("Parser search tree"), false);
     m_ParserCtrl->AddPage(panCompletionTest, _("Completion test"), false);
-    bsz_parser->Add(m_ParserCtrl, 1, wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
-    bsz_main->Add(bsz_parser, 1, wxALL|wxEXPAND|wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL, 5);
+    bsz_parser->Add(m_ParserCtrl, 1, wxEXPAND, 5);
+    bsz_main->Add(bsz_parser, 1, wxALL|wxEXPAND, 5);
     SetSizer(bsz_main);
     mnu_main = new wxMenuBar();
     mnu_file = new wxMenu();
@@ -218,7 +218,7 @@ CCTestFrame::CCTestFrame(const wxString& main_file) :
     //*)
 
     // redirect the wxLogMessage to the text ctrl of the frame
-    wxLogTextCtrl *textLog = new wxLogTextCtrl(m_CompletionTestCtrl);
+    wxLogTextCtrl* textLog = new wxLogTextCtrl(m_CompletionTestCtrl);
     wxLog::SetActiveTarget(textLog);
 #if wxCHECK_VERSION(2,9,0)
     wxLog::DisableTimestamp(); // do not show the time stamp
@@ -226,24 +226,21 @@ CCTestFrame::CCTestFrame(const wxString& main_file) :
     wxLog::SetTimestamp(NULL); // do not show the time stamp
 #endif
 
-    //Setting the macro replacements
-    m_NativeParser.Init();
-
     // TODO: Make this base folders configurable
-    wxString wx_base (_T("E:\\code\\cb\\wx\\wxWidgets-2.8.12\\"));
-    wxString gcc_base(_T("E:\\code\\gcc\\pcxmingw463\\" ));
-    wxString mingwver(_T("i686-w64-mingw32"));
-    wxString gccver(_T("4.6.3"));
+    wxString wx_base (wxT("E:\\code\\cb\\wx\\wxWidgets-2.8.12\\"));
+    wxString gcc_base(wxT("E:\\code\\gcc\\pcxmingw463\\" ));
+    wxString mingwver(wxT("i686-w64-mingw32"));
+    wxString gccver(wxT("4.6.3"));
 
-    m_IncludeCtrl->SetValue(wx_base  + _T("include")                                          + _T("\n") +
-                            wx_base  + _T("lib\\gcc_dll\\mswu")                               + _T("\n") +
-                            gcc_base + _T("lib\\gcc\\")+mingwver+_T("\\")+gccver+_T("\\include\\c++")               + _T("\n") +
-                            gcc_base + _T("lib\\gcc\\")+mingwver+_T("\\")+gccver+_T("\\include\\c++\\") + mingwver  + _T("\n") +
-                            gcc_base + _T("lib\\gcc\\")+mingwver+_T("\\")+gccver+_T("\\include\\c++\\backward")     + _T("\n") +
-                            gcc_base + _T("lib\\gcc\\")+mingwver+_T("\\")+gccver+_T("\\include")                    + _T("\n") +
-                            gcc_base + _T("include")                                                                + _T("\n") +
-                            gcc_base + _T("lib\\gcc\\")+mingwver+_T("\\")+gccver+_T("\\include-fixed")              + _T("\n") +
-                            gcc_base + mingwver + _T("\\include")                                                   + _T("\n"));
+    m_IncludeCtrl->SetValue(wx_base  + wxT("include")                                                                 + wxT("\n") +
+                            wx_base  + wxT("lib\\gcc_dll\\mswu")                                                      + wxT("\n") +
+                            gcc_base + wxT("lib\\gcc\\")+mingwver+wxT("\\")+gccver+wxT("\\include\\c++")              + wxT("\n") +
+                            gcc_base + wxT("lib\\gcc\\")+mingwver+wxT("\\")+gccver+wxT("\\include\\c++\\") + mingwver + wxT("\n") +
+                            gcc_base + wxT("lib\\gcc\\")+mingwver+wxT("\\")+gccver+wxT("\\include\\c++\\backward")    + wxT("\n") +
+                            gcc_base + wxT("lib\\gcc\\")+mingwver+wxT("\\")+gccver+wxT("\\include")                   + wxT("\n") +
+                            gcc_base + wxT("include")                                                                 + wxT("\n") +
+                            gcc_base + wxT("lib\\gcc\\")+mingwver+wxT("\\")+gccver+wxT("\\include-fixed")             + wxT("\n") +
+                            gcc_base + mingwver + wxT("\\include")                                                    + wxT("\n"));
 
 
     CCLogger::Get()->Init(this, idCCLogger, idCCLogger, idCCAddToken);
@@ -269,8 +266,8 @@ void CCTestFrame::Start()
     CCTestAppGlobal::s_fileQueue.Clear();
     CCTestAppGlobal::s_filesParsed.Clear();
 
-    // Obtain all include directories
-    wxStringTokenizer tkz_inc(m_IncludeCtrl->GetValue(), _T("\r\n"));
+    // Obtain all include directories, this is copy the paths in UI to CCTestAppGlobal::s_includeDirs
+    wxStringTokenizer tkz_inc(m_IncludeCtrl->GetValue(), wxT("\r\n"));
     while ( tkz_inc.HasMoreTokens() )
     {
         wxString include = tkz_inc.GetNextToken().Trim(true).Trim(false);
@@ -278,10 +275,13 @@ void CCTestFrame::Start()
             CCTestAppGlobal::s_includeDirs.Add(include);
     }
 
+    // set the macro replacement rule, and include search paths of the Parser object
+    m_NativeParser.Init();
+
     if (m_DoHideCtrl && m_DoHideCtrl->IsChecked())
         Hide();
 
-    m_ProgDlg = new wxProgressDialog(_T("Please wait, operating..."),
+    m_ProgDlg = new wxProgressDialog(_("Please wait, operating..."),
                                      _("Preparing...\nPlease wait..."), 0, this, wxPD_APP_MODAL);
     m_ProgDlg->SetSize(640,100);
     m_ProgDlg->Layout();
@@ -289,8 +289,6 @@ void CCTestFrame::Start()
 
     m_LogCount = 0;
     m_LogCtrl->Clear();
-
-    m_NativeParser.Clear(); // initial clearance
 
     if (!m_MainFile.IsEmpty())
     {
@@ -303,9 +301,11 @@ void CCTestFrame::Start()
     // scan the files with pattern "cc_*.cpp"
     wxArrayString testFiles;
     // if we only debug a single file, we use a file pattern ccc_*.cpp
-    wxDir::GetAllFiles (wxGetCwd(),&testFiles,wxT("ccc_*.cpp"));
+    m_ProgDlg->Update(-1, _("Collecting ccc_*.cpp files..."));
+    wxDir::GetAllFiles(wxGetCwd(), &testFiles, wxT("ccc_*.cpp"));
     if (testFiles.size() > 0)
     {
+        m_ProgDlg->Update(-1, wxString::Format(_("Adding %lu ccc_*.cpp files."), static_cast<unsigned long>(testFiles.size())));
         wxString filename = testFiles[0];
         // only test the first matched file
         CCTestAppGlobal::s_fileQueue.Add(filename);
@@ -317,12 +317,14 @@ void CCTestFrame::Start()
     }
     else // otherwise, we collect all the files with pattern cc_*.cpp
     {
-        wxDir::GetAllFiles 	(wxGetCwd(),&testFiles,wxT("cc_*.cpp"));
+        m_ProgDlg->Update(-1, _("Collecting cc_*.cpp files..."));
+        wxDir::GetAllFiles(wxGetCwd(), &testFiles, wxT("cc_*.cpp"));
+        m_ProgDlg->Update(-1, wxString::Format(_("Adding %lu cc_*.cpp files."), static_cast<unsigned long>(testFiles.size())));
         for (size_t i=0; i<testFiles.size(); i++)
             CCTestAppGlobal::s_fileQueue.Add(testFiles[i]);
     }
 
-    AppendToLog(_T("--------------M-a-i-n--L-o-g--------------\r\n\r\n"));
+    AppendToLog(_("--------------M-a-i-n--L-o-g--------------\r\n\r\n"));
 
     // parse file from the queue one-by-one
     while (!CCTestAppGlobal::s_fileQueue.IsEmpty())
@@ -331,7 +333,7 @@ void CCTestFrame::Start()
         CCTestAppGlobal::s_fileQueue.Remove(file);
         if (file.IsEmpty()) continue;
 
-        AppendToLog(_T("-----------I-n-t-e-r-i-m--L-o-g-----------"));
+        AppendToLog(_("-----------I-n-t-e-r-i-m--L-o-g-----------"));
         m_CurrentFile = file;
 
         m_ProgDlg->Update(-1, m_CurrentFile);
@@ -343,23 +345,23 @@ void CCTestFrame::Start()
         CCTestAppGlobal::s_filesParsed.Add(m_CurrentFile); // done
     }
 
-    if (m_ProgDlg)
-    {
-        delete m_ProgDlg;
-        m_ProgDlg = 0;
-    }
+    delete m_ProgDlg;
+    m_ProgDlg = 0;
 
     if ( !IsShown() )
+    {
         Show();
+        Raise();
+    }
 }
 
 void CCTestFrame::AppendToLog(const wxString& log)
 {
     Freeze();
 
-    m_LogCtrl->AppendText( wxString::Format(_T("%06d. "), ++m_LogCount) );
+    m_LogCtrl->AppendText( wxString::Format(wxT("%06lu. "), static_cast<unsigned long>(++m_LogCount)) );
     m_LogCtrl->AppendText( log );
-    m_LogCtrl->AppendText( _T("\r\n") );
+    m_LogCtrl->AppendText( wxT("\r\n") );
 
     m_LogCtrl->SetInsertionPoint(m_LogCtrl->GetLastPosition());
 
@@ -442,11 +444,11 @@ void CCTestFrame::InitControl()
 
     m_Control->SetKeyWords(1, kwStl);
 
-    m_Control->SetProperty(_T("fold"),              _T("1"));
-    m_Control->SetProperty(_T("fold.html"),         _T("1"));
-    m_Control->SetProperty(_T("fold.comment"),      _T("1"));
-    m_Control->SetProperty(_T("fold.compact"),      _T("0"));
-    m_Control->SetProperty(_T("fold.preprocessor"), _T("1"));
+    m_Control->SetProperty(wxT("fold"),              wxT("1"));
+    m_Control->SetProperty(wxT("fold.html"),         wxT("1"));
+    m_Control->SetProperty(wxT("fold.comment"),      wxT("1"));
+    m_Control->SetProperty(wxT("fold.compact"),      wxT("0"));
+    m_Control->SetProperty(wxT("fold.preprocessor"), wxT("1"));
 
     m_Control->SetFoldFlags(16);
     m_Control->SetMarginType(C_FOLDING_MARGIN, wxSCI_MARGIN_SYMBOL);
@@ -535,7 +537,7 @@ void CCTestFrame::OnMenuTokenSelected(wxCommandEvent& /*event*/)
     ParserBase* pb = &(m_NativeParser.m_Parser);
     TokenTree*  tt = m_NativeParser.m_Parser.GetTokenTree();
     if (!pb || !tt) return;
-    wxTextEntryDialog dlg(this, _T("Enter name of token to debug:"), _T("CCTest"));
+    wxTextEntryDialog dlg(this, _("Enter name of token to debug:"), _("CCTest"));
     if (dlg.ShowModal()==wxID_OK)
     {
         wxString target = dlg.GetValue().Trim(true).Trim(false);
@@ -674,15 +676,15 @@ void CCTestFrame::OnCCLogger(wxCommandEvent& event)
 
     for (size_t i = 0; i < log.Len(); ++i) // Convert '\r' to "\r", '\n' to "\n"
     {
-        if (log.GetChar(i) == _T('\r'))
+        if (log.GetChar(i) == wxT('\r'))
         {
-            log.SetChar(i, _T('\\'));
-            log.insert(++i, 1, _T('r'));
+            log.SetChar(i, wxT('\\'));
+            log.insert(++i, 1, wxT('r'));
         }
-        else if (log.GetChar(i) == _T('\n'))
+        else if (log.GetChar(i) == wxT('\n'))
         {
-            log.SetChar(i, _T('\\'));
-            log.insert(++i, 1, _T('n'));
+            log.SetChar(i, wxT('\\'));
+            log.insert(++i, 1, wxT('n'));
         }
     }
 
@@ -698,18 +700,18 @@ void CCTestFrame::OnCCAddToken(wxCommandEvent& event)
 
 void CCTestFrame::OnPrintTree(cb_unused wxCommandEvent& event)
 {
-    m_ProgDlg = new wxProgressDialog(_T("Please wait, operating..."), _("Preparing...\nPlease wait..."), 0, this, wxPD_APP_MODAL);
+    m_ProgDlg = new wxProgressDialog(_("Please wait, operating..."), _("Preparing...\nPlease wait..."), 0, this, wxPD_APP_MODAL);
     m_ProgDlg->SetSize(640,100);
     m_ProgDlg->Layout();
     m_ProgDlg->CenterOnParent();
     // print tree information below
 
-    m_ProgDlg->Update(-1, wxT("Creating tree log..."));
-    AppendToLog(_T("--------------T-r-e-e--L-o-g--------------\r\n"));
+    m_ProgDlg->Update(-1, _("Creating tree log..."));
+    AppendToLog(_("--------------T-r-e-e--L-o-g--------------\r\n"));
     m_NativeParser.PrintTree();
 
-    m_ProgDlg->Update(-1, wxT("Creating list log..."));
-    AppendToLog(_T("--------------L-i-s-t--L-o-g--------------\r\n"));
+    m_ProgDlg->Update(-1, _("Creating list log..."));
+    AppendToLog(_("--------------L-i-s-t--L-o-g--------------\r\n"));
     m_NativeParser.PrintList();
 
     if (m_DoTreeCtrl->IsChecked())
@@ -733,13 +735,13 @@ void CCTestFrame::OnPrintTree(cb_unused wxCommandEvent& event)
     }
 }
 
-void CCTestFrame::OnTestSingle(wxCommandEvent& event)
+void CCTestFrame::OnTestSingle(wxCommandEvent& WXUNUSED(event))
 {
+    // Note that we don't call the Start() here, because we only want to test a single file,
+    // so the include paths is not updated here(It will be updated in Start() function)
+
     // read the contents of the Control, and parse it.
     // no need to save the file to hard dist and after parsing, delete it.
     wxString content = m_Control->GetText();
-    m_NativeParser.Clear();
     m_NativeParser.ParseAndCodeCompletion(content, /* isLocalFile */ false);
-
 }
-

@@ -21,8 +21,6 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 AM_CONDITIONAL([LINUX], [test `uname` = "Linux"])
 AM_CONDITIONAL([DARWIN], [test `uname` = "Darwin"])
 
-CODEBLOCKS_CHECK_DEBUG
-
 dnl Checks for programs.
 AC_PROG_CXX
 AC_PROG_CPP
@@ -33,6 +31,10 @@ AC_PROG_LN_S
 AC_PROG_MAKE_SET
 AC_PROG_AWK
 
+CODEBLOCKS_CHECK_LINK_FLAG([-Wl,--no-undefined],[LDFLAGS="-Wl,--no-undefined $LDFLAGS"])
+
+CODEBLOCKS_CHECK_DEBUG
+
 CODEBLOCKS_SETUP_FOR_TARGET
 
 AC_DISABLE_STATIC
@@ -41,7 +43,7 @@ AC_PROG_LIBTOOL
 dnl Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
-AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/param.h unistd.h malloc.h])
+AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/param.h unistd.h malloc.h sys/malloc.h malloc/malloc.h])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_HEADER_STDBOOL
@@ -237,6 +239,27 @@ case $WX_BASENAME in
         AC_CHECK_PROG(SETFILE, SetFile, SetFile, /Developer/Tools/SetFile)
         MACSETFILE="\$(SETFILE)"
     ;;
+    *wx_osx*)
+        AC_MSG_RESULT(wxOSX)
+
+        if test "x$BUILD_SPELLCHECKER_TRUE" = "x" ; then
+
+            AC_CHECK_PROG(HAVE_PKG_CONFIG, pkg-config, yes, no)
+            ifdef([PKG_CHECK_MODULES],[],[
+                define([PKG_CHECK_MODULES],
+                [ echo "You don't have pkg.m4 properly installed" >&2
+                    exit 1
+                ])
+            ])
+            PKG_PROG_PKG_CONFIG
+
+            if test "x$HAVE_PKG_CONFIG" = "xyes"; then
+                PKG_CHECK_MODULES([HUNSPELL], [hunspell])
+            fi
+        fi
+        CB_HUNSPELL_CFLAGS="$HUNSPELL_CFLAGS"
+        CB_HUNSPELL_LIBS="$HUNSPELL_LIBS"
+    ;;
     *)
         AC_MSG_RESULT(other)
     ;;
@@ -284,6 +307,7 @@ AC_SUBST(WX_X11_LIBS)
 AC_SUBST(WXPROPGRID_DIR)
 AC_SUBST(WXPROPGRID_LIB)
 AC_SUBST(WXPROPGRID_INCLUDE)
+AC_SUBST(WXPROPGRID_HEADERS)
 
 AC_SUBST(POSTLINK_COMMAND)
 AC_SUBST(MACSETFILE)

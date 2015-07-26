@@ -59,6 +59,30 @@ AM_CONDITIONAL(CODEBLOCKS_LINUX, test x$linux = xtrue)
 AM_CONDITIONAL(CODEBLOCKS_DARWIN, test x$darwin = xtrue )
 ])
 
+dnl copied, renamed and fixed to work on older autoconf's from autoconf-archive AX_CHECK_LINK_FLAG
+AC_DEFUN([CODEBLOCKS_CHECK_LINK_FLAG],
+[
+m4_version_prereq([2.64], dnl for _AC_LANG_PREFIX and AS_VAR_IF
+[
+AS_VAR_PUSHDEF([CACHEVAR],[ax_cv_check_ldflags_$4_$1])dnl
+AC_CACHE_CHECK([whether the linker accepts $1], CACHEVAR, [
+  ax_check_save_flags=$LDFLAGS
+  LDFLAGS="$LDFLAGS $4 $1"
+  AC_LINK_IFELSE([m4_default([$5],[AC_LANG_PROGRAM()])],
+    [AS_VAR_SET(CACHEVAR,[yes])],
+    [AS_VAR_SET(CACHEVAR,[no])])
+  LDFLAGS=$ax_check_save_flags])
+AS_VAR_IF(CACHEVAR,yes,
+  [m4_default([$2], :)],
+  [m4_default([$3], :)])
+AS_VAR_POPDEF([CACHEVAR])dnl
+],
+[
+   AC_MSG_NOTICE([autoconf-version < 2.64, not checking for linker-flags "$1"])
+])
+])dnl CODEBLOCKS_CHECK_LINK_FLAG
+
+
 dnl check whether to enable debugging
 AC_DEFUN([CODEBLOCKS_CHECK_DEBUG],
 [
@@ -69,12 +93,10 @@ AC_ARG_ENABLE(debug, [AC_HELP_STRING([--enable-debug], [turn on debugging (defau
     if test "x$enable_debug" = "xyes"; then
         CFLAGS="-g -DDEBUG -DCB_AUTOCONF $CFLAGS"
         CXXFLAGS="-g -DDEBUG -DCB_AUTOCONF $CXXFLAGS"
-        LDFLAGS="-Wl,--no-undefined"
         AC_MSG_RESULT(yes)
     else
         CFLAGS="-O2 -ffast-math -DCB_AUTOCONF $CFLAGS"
         CXXFLAGS="-O2 -ffast-math -DCB_AUTOCONF $CXXFLAGS"
-        LDFLAGS="-Wl,--no-undefined"
         AC_MSG_RESULT(no)
     fi
 ])

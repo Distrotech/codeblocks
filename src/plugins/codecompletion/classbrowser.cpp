@@ -81,8 +81,6 @@ int idMenuJumpToImplementation = wxNewId();
 int idMenuRefreshTree          = wxNewId();
 int idCBViewInheritance        = wxNewId();
 int idCBExpandNS               = wxNewId();
-int idCBViewModeFlat           = wxNewId();
-int idCBViewModeStructured     = wxNewId();
 int idMenuForceReparse         = wxNewId();
 int idMenuDebugSmartSense      = wxNewId();
 int idCBNoSort                 = wxNewId();
@@ -91,6 +89,8 @@ int idCBSortByKind             = wxNewId();
 int idCBSortByScope            = wxNewId();
 int idCBSortByLine             = wxNewId();
 int idCBBottomTree             = wxNewId();
+
+/** the event ID which will be sent from worker thread to ClassBrowser */
 int idThreadEvent              = wxNewId();
 
 BEGIN_EVENT_TABLE(ClassBrowser, wxPanel)
@@ -107,9 +107,9 @@ BEGIN_EVENT_TABLE(ClassBrowser, wxPanel)
 
     EVT_TEXT_ENTER(XRCID("cmbSearch"),                   ClassBrowser::OnSearch)
     EVT_COMBOBOX  (XRCID("cmbSearch"),                   ClassBrowser::OnSearch)
+    EVT_BUTTON(XRCID("btnSearch"),                       ClassBrowser::OnSearch)
 
     EVT_CHOICE(XRCID("cmbView"),                         ClassBrowser::OnViewScope)
-    EVT_BUTTON(XRCID("btnSearch"),                       ClassBrowser::OnSearch)
 
     EVT_MENU(idMenuJumpToDeclaration,                    ClassBrowser::OnJumpTo)
     EVT_MENU(idMenuJumpToImplementation,                 ClassBrowser::OnJumpTo)
@@ -117,7 +117,6 @@ BEGIN_EVENT_TABLE(ClassBrowser, wxPanel)
     EVT_MENU(idMenuForceReparse,                         ClassBrowser::OnForceReparse)
     EVT_MENU(idCBViewInheritance,                        ClassBrowser::OnCBViewMode)
     EVT_MENU(idCBExpandNS,                               ClassBrowser::OnCBExpandNS)
-    EVT_MENU(idCBViewModeFlat,                           ClassBrowser::OnCBViewMode)
     EVT_MENU(idMenuDebugSmartSense,                      ClassBrowser::OnDebugSmartSense)
     EVT_MENU(idCBNoSort,                                 ClassBrowser::OnSetSortType)
     EVT_MENU(idCBSortByAlpabet,                          ClassBrowser::OnSetSortType)
@@ -134,10 +133,10 @@ ClassBrowser::ClassBrowser(wxWindow* parent, NativeParser* np) :
     m_NativeParser(np),
     m_TreeForPopupMenu(0),
     m_Parser(0L),
-    m_ClassBrowserSemaphore(0, 1),
+    m_ClassBrowserSemaphore(/*initialcount*/ 0, /*maxcount*/ 1),
     m_ClassBrowserBuilderThread(0)
 {
-    wxXmlResource::Get()->LoadPanel(this, parent, _T("pnlCB"));
+    wxXmlResource::Get()->LoadPanel(this, parent, _T("pnlCB")); // panel class browser -> pnlCB
     m_Search = XRCCTRL(*this, "cmbSearch", wxComboBox);
 
     if (platform::windows)
@@ -533,7 +532,9 @@ void ClassBrowser::OnJumpTo(wxCommandEvent& event)
         }
     }
 }
-
+/* NOTE (ollydbg#1#05/17/15): This function can directly access to the TokenTree, but I don't see
+  any protector here, do we need one? In the meanwhile, the parserthread may be running, and the
+  TokenTree could be updated. */
 void ClassBrowser::OnTreeItemDoubleClick(wxTreeEvent& event)
 {
     wxTreeCtrl* wx_tree = (wxTreeCtrl*)event.GetEventObject();
@@ -544,6 +545,8 @@ void ClassBrowser::OnTreeItemDoubleClick(wxTreeEvent& event)
     CCTreeCtrlData* ctd = (CCTreeCtrlData*)wx_tree->GetItemData(id);
     if (ctd && ctd->m_Token)
     {
+        // when user double click on an item, also with CONTROL and SHIFT key pressed, then we
+        // pop up a cc debugging dialog.
         if (wxGetKeyState(WXK_CONTROL) && wxGetKeyState(WXK_SHIFT))
         {
 //            TokenTree* tree = m_Parser->GetTokenTree(); // the one used inside CCDebugInfo
@@ -558,6 +561,8 @@ void ClassBrowser::OnTreeItemDoubleClick(wxTreeEvent& event)
             return;
         }
 
+        // jump to the implementation line only if the token is a function, and has a valid
+        // implementation field
         bool toImp = false;
         switch (ctd->m_Token->m_TokenKind)
         {
@@ -613,6 +618,8 @@ void ClassBrowser::OnTreeItemDoubleClick(wxTreeEvent& event)
         cbEditor* ed = Manager::Get()->GetEditorManager()->Open(fname.GetFullPath());
         if (ed)
         {
+            // our Token's line is zero based, but Scintilla's one based, so we need to adjust the
+            // line number
             int line;
             if (toImp)
                 line = ctd->m_Token->m_ImplLine - 1;
@@ -854,6 +861,12 @@ void ClassBrowser::OnSearch(cb_unused wxCommandEvent& event)
     }
 }
 
+/* There are several cases:
+ A: If the worker thread is not created yet, just create one, and build the tree.
+ B: If the worker thread is already created
+    B1: the thread is running, then we need to pause it, and  re-initialize it and rebuild the tree.
+    B2: if the thread is already paused, then we only need to resume it again.
+*/
 void ClassBrowser::ThreadedBuildTree(cbProject* activeProject)
 {
     if (Manager::IsAppShuttingDown() || !m_Parser)
@@ -891,7 +904,7 @@ void ClassBrowser::ThreadedBuildTree(cbProject* activeProject)
         TRACE(wxT("ClassBrowser: ClassBrowserBuilderThread: Paused."));
     }
 
-    // initialise it
+    // initialise it, this function is called from the GUI main thread.
     m_ClassBrowserBuilderThread->Init(m_NativeParser,
                                       m_CCTreeCtrl,
                                       m_CCTreeCtrlBottom,

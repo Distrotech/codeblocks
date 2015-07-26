@@ -46,13 +46,17 @@ public:
     /** @brief a long statement can be divided to a ParserComponent chain.
      *
      * e.g. for a statement like below:
+     * @code
      * Ogre::Root::getSingleton().|
+     * @endcode
      *
      *  a chains of four ParserComponents will be generated and list below:
+     * @code
      *  Ogre             [pttNamespace]
      *  Root             [pttClass]
      *  getSingleton     [pttFunction]
      *  (empty space)    [pttSearchText]
+     * @endcode
      */
     struct ParserComponent
     {
@@ -129,18 +133,24 @@ protected:
 
     /** helper function to split the statement
      * line contains a string on the following form:
+     * @code
      * "    char* mychar = SomeNamespace::m_SomeVar.SomeMeth"
+     * @endcode
      * first we locate the first non-space char starting from the *end*:
-     *
+     * @code
      * "    char* mychar = SomeNamespace::m_SomeVar.SomeMeth"
-     *                     ^
+     * @endcode                   ^
      * then we remove everything before it.
      * after it, what we do here, is (by this example) return "SomeNamespace"
      * *and* modify line to become:
+     * @code
      * m_SomeVar.SomeMeth
+     * @endcode
      * so that if we 're called again with the (modified) line,
      * we 'll return "m_SomeVar" and modify line (again) to become:
+     * @code
      * SomeMeth
+     * @endcode
      * and so on and so forth until we return an empty string...
      * NOTE: if we find () args or [] arrays in our way, we skip them (done in GetNextCCToken)...
      */
@@ -149,11 +159,13 @@ protected:
                         OperatorType&    tokenOperatorType);
 
     /** helper function to split the statement
+     *  @code
      *   "    SomeNameSpace::SomeClass.SomeMethod|"
      *        ^  should stop here  <------------ ^ start from here, go backward(right to left)
      *   "    f(SomeNameSpace::SomeClass.SomeMethod|"
      *          ^ should stop here
-     * so, brace level should be considered
+     *  @endcode
+     *  so, brace level should be considered
      */
     unsigned int FindCCTokenStart(const wxString& line);
 
@@ -162,8 +174,10 @@ protected:
      * @param startAt this will be updated to the char after the identifier
      * @param tokenOperatorType the type of the operator
      * E.g.
+     * @code
      *            SomeMethod()->
      *            ^begin
+     * @endcode
      * the returned wxString is "SomeMethod", the tokenOperatorType is pointer member access
      */
     wxString GetNextCCToken(const wxString& line,
@@ -189,8 +203,53 @@ protected:
     /** A statement(expression) is expressed by a ParserComponent queue
      *  We do a match from the left of the queue one by one.
      *
+     *
+     * Here is a simple description about the algorithm, suppose we have such code snippet
+     * @code
+     * namespace AAA
+     * {
+     *     class BBB
+     *     {
+     *     public:
+     *         int m_aaa;
+     *     }
+     *     class CCC
+     *     {
+     *     public:
+     *         BBB fun();
+     *     }
+     * }
+     * AAA::CCC obj;
+     * obj.fun().|-----we want to get code suggestion list here
+     * @endcode
+     * We first split the statement "obj.fun()." into 3 components:
+     * component name
+     * @code
+     * 1, obj
+     * 2, fun
+     * 3, empty
+     * @endcode
+     * We do three loops here, each loop, we consume one component. Also each loop's result will
+     * serve as the next loop's search scope.
+     *
+     * Loop 1
+     * We first search the tree by the text "obj", we find a matched variable token, which has the
+     * type string "AAA::CCC", then the text "AAA::CCC" is resolved to a class kind token "class CCC"
+     * Loop 2
+     * We search the tree by the text "fun". Here the search scope should be "CCC", it's the result
+     * from the previous loop, so we find that there is a function kind token under "class CCC",
+     * which is "function fun()" token. Then we need to see the return type of the fun() token,
+     * which is the name "BBB". Then we do another text search for "BBB" in the tree, and find a
+     * class kind token "class BBB"
+     * Loop 3
+     * Since the last search text is empty, we just return all the children of the "class BBB" token,
+     * so finally, we give the child variable kind token "m_aaa", then the code suggestion should
+     * prompt the string "m_aaa"
+     *
+     * @param tree the token tree pointer
      * @param components expression structure expressed in std::queue<ParserComponent>
      * @param searchScope search scope defined by TokenIdxSet
+     * @param[out] the final result token index
      * @param caseSense case sensitive match
      * @param isPrefix match type( full match or prefix match)
      * @return result tokens count
@@ -265,8 +324,8 @@ protected:
                              bool            isPrefix = false,
                              short int       kindMask = 0xFFFF);
 
-    /** This function is just like the one above, especially that no Token tree information is used
-     * So, it use the current parser's Token tree.
+    /** This function is just like the one above, especially that it use a single parent Token id,
+     *  not the parent id set in previous one.
      *
      * All functions that call this recursive function, should already entered a critical section.
      *
@@ -279,6 +338,27 @@ protected:
                              bool               isPrefix = false,
                              short int          kindMask = 0xFFFF);
 
+    /** Test if token with this id is allocator class.
+     *
+     * All functions that call this function, should already entered a critical section.
+     *
+     * @param tree TokenTree pointer
+     * @param id token idx
+     */
+    bool IsAllocator(TokenTree*   tree,
+                     const int&     id);
+
+    /** Test if token with this id depends on allocator class.
+     * Currently, this function only identifies STL containers dependent on allocator.
+     *
+     * All functions that call this recursive function, should already entered a critical section.
+     *
+     * @param tree TokenTree pointer
+     * @param id token idx
+     */
+    bool DependsOnAllocator(TokenTree*    tree,
+                            const int&    id);
+
     /** Collect search scopes, add the searchScopes's parent scope
      * @param searchScope input search scope
      * @param actualTypeScope returned search scope
@@ -289,6 +369,7 @@ protected:
                              TokenTree*         tree);
 
     /** used to get the correct token index in current line, e.g.
+     * @code
      * class A
      * {
      *    void test()
@@ -296,6 +377,7 @@ protected:
      *       |
      *    };              // end of the function body
      * };
+     * @endcode
      * @param tokens all current file's function and class, which cover the current line
      * @param curLine the line of the current caret position
      * @param file editor file name
@@ -306,6 +388,7 @@ protected:
                                 const wxString&    file);
 
     /** call tips are tips when you are entering some functions, such as you have a class definition
+     * @code
      *  class A {
      *  public:
      *      void A() {};
@@ -313,6 +396,7 @@ protected:
      *  };
      *  when you are entering some text like
      *  A(|    or  objA.test(|
+     * @endcode
      * then there will be a tip window show the function prototype of the function
      *
      */
@@ -351,8 +435,10 @@ protected:
     }
 
     /** check whether the line[startAt] point to the identifier
+     * @code
      *  SomeMethod(arg1, arg2)->Method2()
      *  ^^^^^^^^^^ those index will return true
+     * @endcode
      */
     static bool InsideToken(int startAt, const wxString& line)
     {
@@ -363,8 +449,10 @@ protected:
     }
 
     /** go to the first character of the identifier, e.g
+     * @code
      * "    f(SomeNameSpace::SomeClass.SomeMethod"
      *                    return value^         ^begin
+     * @endcode
      *   this is the index before the first character of the identifier
      */
     static int BeginOfToken(int startAt, const wxString& line)
@@ -387,10 +475,12 @@ protected:
     }
 
     /** check startAt is at some character like:
+     * @code
      *  SomeNameSpace::SomeClass
      *                ^ here is a double colon
      *  SomeObject->SomeMethod
      *             ^ here is a pointer member access operator
+     * @endcode
      */
     static bool IsOperatorEnd(int startAt, const wxString& line)
     {
@@ -430,11 +520,13 @@ protected:
     }
 
     /** move to the char before whitespace and tabs, e.g.
+     * @code
      *  SomeNameSpace       ::  SomeClass
      *              ^end   ^begin
      * note if there some spaces in the begging like
      *      "       f::"
      *     ^end    ^begin
+     * @endcode
      * the returned index is -1.
      */
     static int BeforeWhitespace(int startAt, const wxString& line)
@@ -448,8 +540,10 @@ protected:
     }
 
     /** search from left to right, move to the first character of the space
+     * @code
      *  "       ::   f"
      *  ^begin  ^end
+     * @endcode
      */
     static int AfterWhitespace(int startAt, const wxString& line)
     {

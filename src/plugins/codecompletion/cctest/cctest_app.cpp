@@ -81,6 +81,23 @@
  * ParserBase::GetFullFileName(). That's because ParserThread will generally call
  * m_Parent->GetFullFileName() to locate the file, and then m_Parent->ParseFile() to recursively
  * handling the included files.
+ *
+ *
+ * CC_PARSER_TEST is defined in the cctest.cbp, which will enable logging all the debugging messages.
+ * For example, in parserthread.cpp, we have such code snippet:
+ *
+ * #ifdef CC_PARSER_TEST
+ *   #define ADDTOKEN(format, args...) \
+ *           CCLogger::Get()->AddToken(F(format, ##args))
+ *   #define TRACE(format, args...) \
+ *           CCLogger::Get()->DebugLog(F(format, ##args))
+ *   #define TRACE2(format, args...) \
+ *           CCLogger::Get()->DebugLog(F(format, ##args))
+ *
+ * which means all the TRACE like macros will be log out.
+ * This cause some performance issue, if you parse a very large file, or you are parsing a file
+ * which contains many include files, to avoid this, you can simply redefine the TRACE macro
+ * definition to empty.
  */
 
 #ifdef __BORLANDC__
@@ -120,6 +137,8 @@ bool CCTestApp::OnInit()
     wxInitAllImageHandlers();
     //*)
 
+    // the empty parameter _T("") means we don't specify the main test file, so the test files
+    // could searched by some patterns like cc_*.cpp
     CCTestFrame* frame = new CCTestFrame(_T(""));
     frame->Center();
     frame->Show();
