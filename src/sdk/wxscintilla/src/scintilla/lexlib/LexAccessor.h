@@ -63,6 +63,7 @@ public:
 		validLen(0),
 		startSeg(0), startPosStyling(0),
 		documentVersion(pAccess->Version()) {
+		// Prevent warnings by static analyzers about uninitialized buf and styleBuf.
 		buf[0] = 0;
 		styleBuf[0] = 0;
 		switch (codePage) {

@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <ctype.h>
 
+#include <stdexcept>
 /* C::B begin */
 //#include <string>
 /* C::B end */

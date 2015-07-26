@@ -162,7 +162,7 @@ struct WrapPending {
  */
 class Editor : public EditModel, public DocWatcher {
 	// Private so Editor objects can not be copied
-	Editor(const Editor &);
+	explicit Editor(const Editor &);
 	Editor &operator=(const Editor &);
 
 protected:	// ScintillaBase subclass needs access to much of Editor
@@ -322,18 +322,22 @@ protected:	// ScintillaBase subclass needs access to much of Editor
 	void SetRectangularRange();
 	void ThinRectangularRange();
 	void InvalidateSelection(SelectionRange newMain, bool invalidateWholeSelection=false);
+	void InvalidateWholeSelection();
 	void SetSelection(SelectionPosition currentPos_, SelectionPosition anchor_);
 	void SetSelection(int currentPos_, int anchor_);
 	void SetSelection(SelectionPosition currentPos_);
 	void SetSelection(int currentPos_);
 	void SetEmptySelection(SelectionPosition currentPos_);
 	void SetEmptySelection(int currentPos_);
+	enum AddNumber { addOne, addEach };
+	void MultipleSelectAdd(AddNumber addNumber);
 	bool RangeContainsProtected(int start, int end) const;
 	bool SelectionContainsProtected();
 	int MovePositionOutsideChar(int pos, int moveDir, bool checkLineEnd=true) const;
 	SelectionPosition MovePositionOutsideChar(SelectionPosition pos, int moveDir, bool checkLineEnd=true) const;
-	int MovePositionTo(SelectionPosition newPos, Selection::selTypes selt=Selection::noSel, bool ensureVisible=true);
-	int MovePositionTo(int newPos, Selection::selTypes selt=Selection::noSel, bool ensureVisible=true);
+	void MovedCaret(SelectionPosition newPos, SelectionPosition previousPos, bool ensureVisible);
+	void MovePositionTo(SelectionPosition newPos, Selection::selTypes selt=Selection::noSel, bool ensureVisible=true);
+	void MovePositionTo(int newPos, Selection::selTypes selt=Selection::noSel, bool ensureVisible=true);
 	SelectionPosition MovePositionSoVisible(SelectionPosition pos, int moveDir);
 	SelectionPosition MovePositionSoVisible(int pos, int moveDir);
 	Point PointMainCaret();
@@ -464,9 +468,15 @@ protected:	// ScintillaBase subclass needs access to much of Editor
 	void Duplicate(bool forLine);
 	virtual void CancelModes();
 	void NewLine();
-	void CursorUpOrDown(int direction, Selection::selTypes selt=Selection::noSel);
-	void ParaUpOrDown(int direction, Selection::selTypes selt=Selection::noSel);
+	SelectionPosition PositionUpOrDown(SelectionPosition spStart, int direction, int lastX);
+	void CursorUpOrDown(int direction, Selection::selTypes selt);
+	void ParaUpOrDown(int direction, Selection::selTypes selt);
 	int StartEndDisplayLine(int pos, bool start);
+	int VCHomeDisplayPosition(int position);
+	int VCHomeWrapPosition(int position);
+	int LineEndWrapPosition(int position);
+	int HorizontalMove(unsigned int iMessage);
+	int DelWordOrLine(unsigned int iMessage);
 	virtual int KeyCommand(unsigned int iMessage);
 	virtual int KeyDefault(int /* key */, int /*modifiers*/);
 	int KeyDownWithModifiers(int key, int modifiers, bool *consumed);

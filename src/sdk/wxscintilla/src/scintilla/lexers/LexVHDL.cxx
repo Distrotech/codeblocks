@@ -33,8 +33,8 @@ using namespace Scintilla;
 #endif
 
 static void ColouriseVHDLDoc(
-  unsigned int startPos,
-  int length,
+  Sci_PositionU startPos,
+  Sci_Position length,
   int initStyle,
   WordList *keywordlists[],
   Accessor &styler);
@@ -57,8 +57,8 @@ static inline bool IsABlank(unsigned int ch) {
 
 /***************************************/
 static void ColouriseVHDLDoc(
-  unsigned int startPos,
-  int length,
+  Sci_PositionU startPos,
+  Sci_Position length,
   int initStyle,
   WordList *keywordlists[],
   Accessor &styler)
@@ -207,8 +207,8 @@ static bool IsCommentStyle(char style)
 //=============================================================================
 // Folding the code
 static void FoldNoBoxVHDLDoc(
-  unsigned int startPos,
-  int length,
+  Sci_PositionU startPos,
+  Sci_Position length,
   int,
   Accessor &styler)
 {
@@ -216,7 +216,7 @@ static void FoldNoBoxVHDLDoc(
   // don't check if the style for the keywords that I use to adjust the levels.
   char words[] =
     "architecture begin block case component else elsif end entity generate loop package process record then "
-    "procedure function when";
+    "procedure function when units";
   WordList keywords;
   keywords.Set(words);
 
@@ -382,7 +382,8 @@ static void FoldNoBoxVHDLDoc(
             strcmp(s, "package") ==0        ||
             strcmp(s, "process") == 0       ||
             strcmp(s, "record") == 0        ||
-            strcmp(s, "then") == 0)
+            strcmp(s, "then") == 0          ||
+            strcmp(s, "units") == 0)
           {
             if (strcmp(prevWord, "end") != 0)
             {
@@ -437,7 +438,7 @@ static void FoldNoBoxVHDLDoc(
                   (!IsCommentStyle(styleAtPos)) &&
                   (styleAtPos != SCE_VHDL_STRING) &&
                   !iswordchar(styler.SafeGetCharAt(pos-1)) &&
-                  styler.Match(pos, "is") &&
+                  (chAtPos|' ')=='i' && (styler.SafeGetCharAt(pos+1)|' ')=='s' &&
                   !iswordchar(styler.SafeGetCharAt(pos+2)))
                 {
                   if (levelMinCurrentElse > levelNext) {
@@ -509,7 +510,7 @@ static void FoldNoBoxVHDLDoc(
 }
 
 //=============================================================================
-static void FoldVHDLDoc(unsigned int startPos, int length, int initStyle, WordList *[],
+static void FoldVHDLDoc(Sci_PositionU startPos, Sci_Position length, int initStyle, WordList *[],
                        Accessor &styler) {
   FoldNoBoxVHDLDoc(startPos, length, initStyle, styler);
 }

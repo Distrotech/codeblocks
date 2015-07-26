@@ -23,7 +23,7 @@
 #include <wx/defs.h>
 
 /* C::B -> Don't forget to change version number here and in wxscintilla.cpp at the bottom */
-#define wxSCINTILLA_VERSION _T("3.55.0")
+#define wxSCINTILLA_VERSION _T("3.57.0")
 
 #include <wx/control.h>
 #include <wx/dnd.h>
@@ -188,6 +188,7 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_CASE_MIXED 0
 #define wxSCI_CASE_UPPER 1
 #define wxSCI_CASE_LOWER 2
+#define wxSCI_CASE_CAMEL 3
 #define wxSCI_FONT_SIZE_MULTIPLIER 100
 #define wxSCI_WEIGHT_NORMAL 400
 #define wxSCI_WEIGHT_SEMIBOLD 600
@@ -453,6 +454,11 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_SCMOD_ALT 4
 #define wxSCI_SCMOD_SUPER 8
 #define wxSCI_SCMOD_META 16
+#define wxSCI_AC_FILLUP 1
+#define wxSCI_AC_DOUBLECLICK 2
+#define wxSCI_AC_TAB 3
+#define wxSCI_AC_NEWLINE 4
+#define wxSCI_AC_COMMAND 5
 
 /// For SciLexer.h
 #define wxSCI_LEX_CONTAINER 0
@@ -3603,6 +3609,12 @@ public:
     wxString GetTargetText() const;
 /* C::B end */
 
+    // Make the target range start and end be the same as the selection range start and end.
+    void TargetFromSelection();
+
+    // Sets the target to the whole document.
+    void TargetWholeDocument();
+
     // Replace the target text with the argument text.
     // Text is counted so it can contain NULs.
     // Returns the length of the replacement text.
@@ -3756,6 +3768,9 @@ public:
     // Get position of end of word.
     int WordEndPosition(int pos, bool onlyWordCharacters);
 
+    // Is the range start..end considered a word?
+    bool IsRangeWord(int start, int end);
+
     // Sets whether text is word wrapped.
     void SetWrapMode(int mode);
 
@@ -3868,10 +3883,8 @@ public:
     int GetMultiPaste() const;
 
     // Retrieve the value of a tag from a regular expression search.
+    // Result is NUL-terminated.
     wxString GetTag(int tagNumber) const;
-
-    // Make the target range start and end be the same as the selection range start and end.
-    void TargetFromSelection();
 
     // Join the lines in the target.
     void LinesJoin();
@@ -4714,6 +4727,14 @@ public:
 
     // Swap that caret and anchor of the main selection.
     void SwapMainAnchorCaret();
+
+    // Add the next occurrence of the main selection to the set of selections as main.
+    // If the current selection is empty then select word around caret.
+    void MultipleSelectAddNext();
+
+    // Add each occurrence of the main selection in the target to the set of selections.
+    // If the current selection is empty then select word around caret.
+    void MultipleSelectAddEach();
 
     // Indicate that the internal state of a lexer has changed over a range and therefore
     // there may be a need to redraw.

@@ -2001,6 +2001,18 @@ wxString wxScintilla::GetTargetText() const
     return sci2wx(buf);
 }
 
+// Make the target range start and end be the same as the selection range start and end.
+void wxScintilla::TargetFromSelection()
+{
+    SendMsg(SCI_TARGETFROMSELECTION, 0, 0);
+}
+
+// Sets the target to the whole document.
+void wxScintilla::TargetWholeDocument()
+{
+    SendMsg(SCI_TARGETWHOLEDOCUMENT, 0, 0);
+}
+
 // Replace the target text with the argument text.
 // Text is counted so it can contain NULs.
 // Returns the length of the replacement text.
@@ -2319,6 +2331,12 @@ int wxScintilla::WordEndPosition(int pos, bool onlyWordCharacters)
     return SendMsg(SCI_WORDENDPOSITION, pos, onlyWordCharacters);
 }
 
+// Is the range start..end considered a word?
+bool wxScintilla::IsRangeWord(int start, int end)
+{
+    return SendMsg(SCI_ISRANGEWORD, start, end) != 0;
+}
+
 // Sets whether text is word wrapped.
 void wxScintilla::SetWrapMode(int mode)
 {
@@ -2542,12 +2560,6 @@ int wxScintilla::GetFontQuality() const
     return SendMsg(SCI_GETFONTQUALITY, 0, 0);
 }
 /* C::B end */
-
-// Make the target range start and end be the same as the selection range start and end.
-void wxScintilla::TargetFromSelection()
-{
-    SendMsg(SCI_TARGETFROMSELECTION, 0, 0);
-}
 
 // Join the lines in the target.
 void wxScintilla::LinesJoin()
@@ -4317,6 +4329,20 @@ void wxScintilla::SwapMainAnchorCaret()
     SendMsg(SCI_SWAPMAINANCHORCARET, 0, 0);
 }
 
+// Add the next occurrence of the main selection to the set of selections as main.
+// If the current selection is empty then select word around caret.
+void wxScintilla::MultipleSelectAddNext()
+{
+    SendMsg(SCI_MULTIPLESELECTADDNEXT, 0, 0);
+}
+
+// Add each occurrence of the main selection in the target to the set of selections.
+// If the current selection is empty then select word around caret.
+void wxScintilla::MultipleSelectAddEach()
+{
+    SendMsg(SCI_MULTIPLESELECTADDEACH, 0, 0);
+}
+
 // Indicate that the internal state of a lexer has changed over a range and therefore
 // there may be a need to redraw.
 int wxScintilla::ChangeLexerState(int start, int end)
@@ -5863,7 +5889,7 @@ wxScintillaEvent::wxScintillaEvent(const wxScintillaEvent& event):
 /*static*/ wxVersionInfo wxScintilla::GetLibraryVersionInfo()
 {
     /* C::B -> Don't forget to change version number here and in wxscintilla.h at the top */
-    return wxVersionInfo("Scintilla", 3, 55, 0, "Scintilla 3.55");
+    return wxVersionInfo("Scintilla", 3, 57, 0, "Scintilla 3.57");
 }
 #endif
 /* C::B end */

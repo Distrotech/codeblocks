@@ -26,6 +26,7 @@ libwxscintilla_la_SOURCES = src/PlatWX.cpp \
 			src/scintilla/lexers/LexBaan.cxx \
 			src/scintilla/lexers/LexBash.cxx \
 			src/scintilla/lexers/LexBasic.cxx \
+			src/scintilla/lexers/LexBatch.cxx \
 			src/scintilla/lexers/LexBibTeX.cxx \
 			src/scintilla/lexers/LexBullant.cxx \
 			src/scintilla/lexers/LexCLW.cxx \
@@ -39,12 +40,14 @@ libwxscintilla_la_SOURCES = src/PlatWX.cpp \
 			src/scintilla/lexers/LexCrontab.cxx \
 			src/scintilla/lexers/LexCsound.cxx \
 			src/scintilla/lexers/LexD.cxx \
+			src/scintilla/lexers/LexDiff.cxx \
 			src/scintilla/lexers/LexDMAP.cxx \
 			src/scintilla/lexers/LexDMIS.cxx \
 			src/scintilla/lexers/LexECL.cxx \
 			src/scintilla/lexers/LexEScript.cxx \
 			src/scintilla/lexers/LexEiffel.cxx \
 			src/scintilla/lexers/LexErlang.cxx \
+			src/scintilla/lexers/LexErrorList.cxx \
 			src/scintilla/lexers/LexFlagship.cxx \
 			src/scintilla/lexers/LexForth.cxx \
 			src/scintilla/lexers/LexFortran.cxx \
@@ -64,6 +67,7 @@ libwxscintilla_la_SOURCES = src/PlatWX.cpp \
 			src/scintilla/lexers/LexMPT.cxx \
 			src/scintilla/lexers/LexMSSQL.cxx \
 			src/scintilla/lexers/LexMagik.cxx \
+			src/scintilla/lexers/LexMake.cxx \
 			src/scintilla/lexers/LexMarkdown.cxx \
 			src/scintilla/lexers/LexMatlab.cxx \
 			src/scintilla/lexers/LexMetapost.cxx \
@@ -71,9 +75,9 @@ libwxscintilla_la_SOURCES = src/PlatWX.cpp \
 			src/scintilla/lexers/LexMySQL.cxx \
 			src/scintilla/lexers/LexNimrod.cxx \
 			src/scintilla/lexers/LexNsis.cxx \
+			src/scintilla/lexers/LexNull.cxx \
 			src/scintilla/lexers/LexOScript.cxx \
 			src/scintilla/lexers/LexOpal.cxx \
-			src/scintilla/lexers/LexOthers.cxx \
 			src/scintilla/lexers/LexPB.cxx \
 			src/scintilla/lexers/LexPLM.cxx \
 			src/scintilla/lexers/LexPO.cxx \
@@ -84,6 +88,7 @@ libwxscintilla_la_SOURCES = src/PlatWX.cpp \
 			src/scintilla/lexers/LexPowerPro.cxx \
 			src/scintilla/lexers/LexPowerShell.cxx \
 			src/scintilla/lexers/LexProgress.cxx \
+			src/scintilla/lexers/LexProps.cxx \
 			src/scintilla/lexers/LexPython.cxx \
 			src/scintilla/lexers/LexR.cxx \
 			src/scintilla/lexers/LexRebol.cxx \
@@ -154,6 +159,7 @@ noinst_HEADERS = src/PlatWX.h \
 			src/scintilla/include/ILexer.h \
 			src/scintilla/include/Platform.h \
 			src/scintilla/include/SciLexer.h \
+			src/scintilla/include/Sci_Position.h \
 			src/scintilla/include/Scintilla.h \
 			src/scintilla/include/ScintillaWidget.h \
 			src/scintilla/lexlib/Accessor.h \
