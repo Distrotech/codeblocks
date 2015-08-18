@@ -117,8 +117,14 @@ class DLLIMPORT EditorManager : public Mgr<EditorManager>, public wxEvtHandler
         // Returns false on "cancel".
         bool QueryClose(EditorBase* editor);
         bool QueryCloseAll();
+        /** Closes all opened editors. */
         bool CloseAll(bool dontsave = false);
+        /** Closes all opened editors, except the editor passed as parameter. */
         bool CloseAllExcept(EditorBase* editor, bool dontsave = false);
+        /** Closes all editors in the same tab control as the active editor. */
+        bool CloseAllInTabCtrl(bool dontsave = false);
+        /** Closes all editors in the same tab control as the active editor, except the editor passed as parameter. */
+        bool CloseAllInTabCtrlExcept(EditorBase* editor, bool dontsave = false);
         bool Save(const wxString& filename);
         bool Save(int index);
         bool SaveActive();
@@ -135,6 +141,14 @@ class DLLIMPORT EditorManager : public Mgr<EditorManager>, public wxEvtHandler
         /** Check if one of the open files has been modified outside the IDE. If so, ask to reload it. */
         void CheckForExternallyModifiedFiles();
 
+        void SetZoom(int zoom);
+        int GetZoom()const;
+
+        void MarkReadOnly(int page, bool readOnly = true);
+
+        wxString GetSelectionClipboard();
+        void SetSelectionClipboard(const wxString& data);
+    private:
         void OnGenericContextMenuHandler(wxCommandEvent& event);
         void OnPageChanged(wxAuiNotebookEvent& event);
         void OnPageChanging(wxAuiNotebookEvent& event);
@@ -159,14 +173,8 @@ class DLLIMPORT EditorManager : public Mgr<EditorManager>, public wxEvtHandler
         void OnTreeItemActivated(wxTreeEvent &event);
         void OnTreeItemRightClick(wxTreeEvent &event);
         void CollectDefines(CodeBlocksEvent& event);
-        void SetZoom(int zoom);
-        int GetZoom()const;
-
-        void MarkReadOnly(int page, bool readOnly = true);
 
         void OnAppActivated(CodeBlocksEvent& event);
-        wxString GetSelectionClipboard();
-        void SetSelectionClipboard(const wxString& data);
 
     protected:
         // m_EditorsList access
@@ -183,6 +191,11 @@ class DLLIMPORT EditorManager : public Mgr<EditorManager>, public wxEvtHandler
         void OnCheckForModifiedFiles(wxCommandEvent& event);
         bool IsHeaderSource(const wxFileName& candidateFile, const wxFileName& activeFile, FileType ftActive, bool& isCandidate);
         wxFileName FindHeaderSource(const wxArrayString& candidateFilesArray, const wxFileName& activeFile, bool& isCandidate);
+
+        /** Closes all editors passed to the function. */
+        bool CloseEditors(const std::vector<EditorBase*> &editors, bool dontsave = false);
+        /** Returns a vector with pointers to the editors that are in the same tab control as the passed editor. */
+        void GetEditorsInTabCtrl(std::vector<EditorBase*> &editors, EditorBase *editor);
 
         cbAuiNotebook*             m_pNotebook;
         cbNotebookStack*           m_pNotebookStackHead;

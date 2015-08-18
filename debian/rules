@@ -2,9 +2,6 @@
 include /usr/share/cdbs/1/class/autotools.mk
 include /usr/share/cdbs/1/rules/debhelper.mk
 
-makebuilddir::
-	./bootstrap
-
 DEB_BUILD_PARALLEL= yes
 
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
@@ -24,5 +21,4 @@ DEB_DBG_PACKAGE_libcodeblocks0= codeblocks-dbg
 DEB_DBG_PACKAGE_libwxsmithlib0= codeblocks-contrib-dbg
 
 DEB_DH_MAKESHLIBS_ARGS_codeblocks-contrib= -Ncodeblocks-contrib
-DEB_DH_BUILDDEB_ARGS= -- -Zlzma
 

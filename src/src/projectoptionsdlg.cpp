@@ -11,6 +11,7 @@
 
 #ifndef CB_PRECOMP
     #include "manager.h"
+    #include "logmanager.h"
     #include "macrosmanager.h"
     #include "pluginmanager.h"
     #include "projectmanager.h"
@@ -695,6 +696,11 @@ void ProjectOptionsDlg::OnRemoveBuildTargetClick(cb_unused wxCommandEvent& event
 {
     wxListBox* lstTargets = XRCCTRL(*this, "lstBuildTarget", wxListBox);
     int targetIdx = lstTargets->GetSelection();
+    if (targetIdx == wxNOT_FOUND)
+    {
+        Manager::Get()->GetLogManager()->Log(_("No target removed, because nothing is selected in the Build target list box!"));
+        return;
+    }
 
     wxString caption;
     caption.Printf(_("Are you sure you want to delete build target \"%s\"?"), lstTargets->GetStringSelection().c_str());
@@ -702,7 +708,13 @@ void ProjectOptionsDlg::OnRemoveBuildTargetClick(cb_unused wxCommandEvent& event
         return;
 
     lstTargets->Delete(targetIdx);
-    lstTargets->SetSelection(targetIdx);
+    if (lstTargets->GetCount() > 0)
+    {
+        if (static_cast<unsigned>(targetIdx) >= lstTargets->GetCount())
+            lstTargets->SetSelection(lstTargets->GetCount() - 1);
+        else
+            lstTargets->SetSelection(targetIdx);
+    }
     // the target name in the units is changed by the project...
     m_Project->RemoveBuildTarget(targetIdx);
     m_Current_Sel = -1;
