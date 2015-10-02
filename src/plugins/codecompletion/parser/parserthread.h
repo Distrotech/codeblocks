@@ -172,7 +172,7 @@ protected:
     /** actually run the syntax analysis*/
     void DoParse();
 
-    /** skip blocks () [] {} <> */
+    /** skip blocks {} */
     void SkipBlock();
 
     /** skip the template argument*/
@@ -182,12 +182,6 @@ protected:
       * parserThead object associate with the included file to parserthread pool
       */
     void HandleIncludes();
-
-    /** handle the statement: #define XXXXX */
-    void HandleDefines();
-
-    /** handle the statement: #undef XXXXX */
-    void HandleUndefs();
 
     /** handle the statement:
       * namespace XXX {
@@ -225,12 +219,6 @@ protected:
     /** handle typedef directive */
     void HandleTypedef();
 
-    /** We guess this is a macro usage, so try to expand macro
-      * @param id token id in Token tree
-      * @param peek macro actual arguments
-      */
-    void HandleMacroExpansion(int id, const wxString& peek);
-
     /** eg: class ClassA{...} varA, varB, varC
       * This function will read the "varA, varB, varC"
       * \return True, if token was handled, false, if an unexpected token was read.
@@ -249,6 +237,9 @@ protected:
      *  @return True, if token was handled, false, if an unexpected token was read.
      */
     bool ReadClsNames(wxString& ancestor);
+
+    /** read <> as a whole token */
+    wxString ReadAngleBrackets();
 
     /** add one token to the token tree
       * @param kind Token type, see @TokenKind Emun for more details
@@ -297,19 +288,13 @@ private:
                               Token*                parentIfCreated = 0);
 
     /** Converts a full argument list (including variable names) to argument types only and strips spaces.
-      * eg: if the argument list is like "(const TheClass* the_class, int my_int)"
+      * eg: if the argument list is like "(const TheClass* the_class = 0x1234, int my_int = 567)"
       * then, the returned argument list is "(const TheClass*,int)"
       * @param args Full argument list
       * @param baseArgs argument types only
       * @return if failed, will return false, so, it must be a variable
       */
     bool GetBaseArgs(const wxString & args, wxString& baseArgs);
-
-    /** Get the class name from a macro */
-    wxString GetClassFromMacro(const wxString& macro);
-
-    /** Get the macro's type, if the token is a macro, and saved the type in tokenName */
-    bool GetRealTypeIfTokenIsMacro(wxString& tokenName);
 
     /** Read the <xxxx=yyy, zzz> , and store the value in m_TemplateArgs */
     void GetTemplateArgs();
@@ -404,10 +389,10 @@ private:
     bool                 m_IsLocal;
 
     /** This is a very important member variables! It serves as a type stack,
-      * eg: parsing the statement: "int wxString const varA;"
+      * eg: parsing the statement: "unsigned int const varA;"
       * we determine 'varA' is a token variable, until we searching to the last semicolon.
       * every token before 'varA' will be pushed to m_Str, at this time
-      * m_Str = "int wxString const"
+      * m_Str = "unsigned int const"
       */
     wxString             m_Str;
 

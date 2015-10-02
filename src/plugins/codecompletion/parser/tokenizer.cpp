@@ -70,6 +70,7 @@ namespace TokenizerConsts
 {
     const wxString colon        (_T(":"));
     const wxString colon_colon  (_T("::"));
+    const wxString equal        (_T("="));
     const wxString kw_if        (_T("if"));
     const wxString kw_ifdef     (_T("ifdef"));
     const wxString kw_ifndef    (_T("ifndef"));
@@ -80,13 +81,12 @@ namespace TokenizerConsts
     const wxString kw_endif     (_T("endif"));
     const wxString hash         (_T("#"));
     const wxString tabcrlf      (_T("\t\n\r"));
+    const wxString kw_define    (_T("define"));
+    const wxString kw_undef     (_T("undef"));
 }// namespace TokenizerConsts
 
-// static
-wxStringHashMap     Tokenizer::s_Replacements;
-
-// macro replacement may recursive call to an infinite loop, so we should set a limit to avoid this case
-static const size_t s_MaxRepeatReplaceCount = 50;
+// maximun macro replacement stack size
+static const size_t s_MaxMacroReplaceDepth = 5;
 
 Tokenizer::Tokenizer(TokenTree* tokenTree, const wxString& filename) :
     m_TokenTree(tokenTree),
@@ -106,12 +106,11 @@ Tokenizer::Tokenizer(TokenTree* tokenTree, const wxString& filename) :
     m_SavedLineNumber(1),
     m_SavedNestingLevel(0),
     m_IsOK(false),
-    m_State(tsSkipUnWanted),
+    m_State(tsNormal),
     m_Loader(0),
-    m_FirstRemainingLength(0),
-    m_RepeatReplaceCount(0),
     m_NextTokenDoc(),
-    m_LastTokenIdx(-1)
+    m_LastTokenIdx(-1),
+    m_ReadingMacroDefinition(false)
 {
     m_TokenizerOptions.wantPreprocessor = true;
     m_TokenizerOptions.storeDocumentation = true;
@@ -205,8 +204,6 @@ void Tokenizer::BaseInit()
     m_SavedLineNumber      = 1;
     m_SavedNestingLevel    = 0;
     m_IsOK                 = false;
-    m_FirstRemainingLength = 0;
-    m_RepeatReplaceCount   = 0;
     m_Buffer.Clear();
     m_NextTokenDoc.clear();
     m_LastTokenIdx         = -1;
@@ -334,35 +331,18 @@ bool Tokenizer::SkipToStringEnd(const wxChar& ch)
     return true;
 }
 
-bool Tokenizer::MoveToNextChar(const unsigned int amount)
+bool Tokenizer::MoveToNextChar()
 {
-    assert(amount);
-    if(amount == 1) // compiler will dead-strip this
+    ++m_TokenIndex;
+    if (IsEOF())
     {
-        ++m_TokenIndex;
-        if (IsEOF())
-        {
-            m_TokenIndex = m_BufferLen;
-            return false;
-        }
-
-        if (PreviousChar() == _T('\n'))
-            ++m_LineNumber;
-        return true;
+        m_TokenIndex = m_BufferLen;
+        return false;
     }
-    else
-    {
-        m_TokenIndex += amount;
-        if (IsEOF())
-        {
-            m_TokenIndex = m_BufferLen;
-            return false;
-        }
 
-        if (PreviousChar() == _T('\n'))
-            ++m_LineNumber;
-        return true;
-    }
+    if (PreviousChar() == _T('\n'))
+        ++m_LineNumber;
+    return true;
 }
 
 // return true if we really skip a string, that means m_TokenIndex has changed.
@@ -384,55 +364,9 @@ bool Tokenizer::SkipString()
     return false;
 }
 
-// expect we are not in a C-string.
-bool Tokenizer::SkipToOneOfChars(const wxChar* chars, bool supportNesting, bool skipPreprocessor, bool skipAngleBrace)
+wxString Tokenizer::ReadToEOL(bool stripUnneeded)
 {
-    while (NotEOF() && !CharInString(CurrentChar(), chars))
-    {
-        MoveToNextChar();
-
-        while (SkipString() || SkipComment())
-            ;
-
-        // use 'while' here to cater for consecutive blocks to skip (e.g. sometemplate<foo>(bar)
-        // must skip <foo> and immediately after (bar))
-        // because if we don't, the next block won't be skipped ((bar) in the example) leading to weird
-        // parsing results
-        bool done = false;
-        while (supportNesting && !done)
-        {
-            switch (CurrentChar())
-            {
-                case '#':
-                    if (skipPreprocessor)
-                        SkipToEOL(true);
-                    else
-                        done = true;
-                    break;
-                case '{': SkipBlock('{'); break;
-                case '(': SkipBlock('('); break;
-                case '[': SkipBlock('['); break;
-                case '<': // don't skip if << operator
-                    if (skipAngleBrace)
-                    {
-                        if (NextChar() == '<')
-                            MoveToNextChar(2); // skip it and also the next '<' or the next '<' leads to a SkipBlock('<');
-                        else
-                            SkipBlock('<');
-                        break;
-                    }
-
-                default: done = true; break;
-            }
-        }
-
-    }
-
-    return NotEOF();
-}
-
-wxString Tokenizer::ReadToEOL(bool nestBraces, bool stripUnneeded)
-{
+    m_ReadingMacroDefinition = true;
     if (stripUnneeded)
     {
         // there are many cases when reading the #define xxx *****
@@ -448,9 +382,9 @@ wxString Tokenizer::ReadToEOL(bool nestBraces, bool stripUnneeded)
         // a macro definition has ending C++ comments
         // #define xxx yyy zzz // aaa bbb
 
-        TRACE(_T("%s : line=%u, CurrentChar='%c', PreviousChar='%c', NextChar='%c', nestBrace(%d)"),
+        TRACE(_T("%s : line=%u, CurrentChar='%c', PreviousChar='%c', NextChar='%c'"),
               wxString(__PRETTY_FUNCTION__, wxConvUTF8).wc_str(), m_LineNumber, CurrentChar(),
-              PreviousChar(), NextChar(), nestBraces ? 1 : 0);
+              PreviousChar(), NextChar());
 
         static const size_t maxBufferLen = 4094;
         wxChar buffer[maxBufferLen + 2];
@@ -499,14 +433,6 @@ wxString Tokenizer::ReadToEOL(bool nestBraces, bool stripUnneeded)
                     p = buffer;
                 }
 
-                if (nestBraces)
-                {
-                    if (ch == _T('{'))
-                        ++m_NestLevel;
-                    else if (ch == _T('}'))
-                        --m_NestLevel;
-                }
-
                 MoveToNextChar();
             }
 
@@ -531,207 +457,93 @@ wxString Tokenizer::ReadToEOL(bool nestBraces, bool stripUnneeded)
         TRACE(_T("ReadToEOL(): (END) We are now at line %u, CurrentChar='%c', PreviousChar='%c', NextChar='%c'"),
               m_LineNumber, CurrentChar(), PreviousChar(), NextChar());
         TRACE(_T("ReadToEOL(): %s"), str.wx_str());
-
+        m_ReadingMacroDefinition = false;
         return str;
     }
     else
     {
         const unsigned int idx = m_TokenIndex;
-        SkipToEOL(nestBraces);
+        SkipToEOL();
+        m_ReadingMacroDefinition = false;
         return m_Buffer.Mid(idx, m_TokenIndex - idx);
     }
 }
 
+// there are some rules which make the parentheses very compact
+// 1, there should be no space before ',' , '*' and '&', but should have a space after that
+// 2, two or more spaces becomes one space
+// 3, no spaces after the '(' and before ')'
+// 4, there need a space to separate to identifier. see the "unsigned" and "int" below
+// 5, there is a space before and after the "=" char
+// "(  unsigned  int   *  a, float  & b  )" -> "(unsigned int* a, float& b)"
+// "( int a  [ 10 ], float ** b )" -> "(int a [10], float** b)"
+// "( int a  =   5)" -> "(int a = 5)"
+
 void Tokenizer::ReadParentheses(wxString& str)
 {
-    // we create a local buffer here, so the data is copied from m_Buffer to buffer
-    // once the local buffer is full, we append the content in local buffer to the result str
-    static const size_t maxBufferLen = 4093;
-    // local buffer
-    wxChar buffer[maxBufferLen + 3];
-    buffer[0] = _T('$'); // avoid segfault error, because we have some *(p - 1) = x in the code
-    wxChar* realBuffer = buffer + 1;
-    // p points to the local buffer
-    wxChar* p = realBuffer;
-
-    int level = 0; // brace level of '(' and ')'
+    // brace level of '(' and ')', the str is currently "(", so the level is 1
+    int level = 1;
 
     while (NotEOF())
     {
-        while (SkipComment())
-            ;
-        wxChar ch = CurrentChar();
+        wxString token = DoGetToken();
 
-        while (ch == _T('#')) // do not use if
+        if (token == _T("("))
         {
-            const PreprocessorType type = GetPreprocessorType();
-            if (type == ptOthers)
+            ++level;
+            str << token;
+        }
+        else if (token == _T(")"))
+        {
+            --level;
+            str << token;
+            if (level == 0)
                 break;
-            HandleConditionPreprocessor(type);
-            ch = CurrentChar();
+
         }
-
-        const unsigned int startIndex = m_TokenIndex;
-
-        switch(ch)
+        else if (token == _T("*") || token == _T("&") )
         {
-        case _T('('):
-            {
-                ++level;
-                *p = ch;
-                ++p;
-            }
-            break;
-
-        case _T(')'):
-            {
-                if (*(p - 1) <= _T(' '))
-                    --p; // if previous char is a space, we overwrite the space with a ')', so we save one char
-                --level;
-                *p = ch;
-                ++p;
-            }
-            break;
-
-        case _T('\''):
-        case _T('"'):
-            {
-                MoveToNextChar();     // skip the leading '"' or '\''
-                SkipToStringEnd(ch);  // m_TokenIndex point to the trailing '"' or '\'' now
-                MoveToNextChar();     // move to the char after trailing char
-                const size_t writeLen = m_TokenIndex - startIndex; // the string length
-                const size_t usedLen = p - realBuffer;
-                if (usedLen + writeLen > maxBufferLen) // there is not enough space left to write the string
-                {
-                    if (writeLen > maxBufferLen) // to big string?
-                    {
-                        TRACE(_T("ReadParentheses(): Catch exception 1: %lu"), static_cast<unsigned long>(writeLen));
-                        return;
-                    }
-
-                    if (p != realBuffer) // add the used string to the result str
-                    {
-                        str.Append(realBuffer, usedLen);
-                        p = realBuffer;  // adjust the p, as it was an empty buffer
-                    }
-                    // append the string to str (not write the string to the buffer)
-                    str.Append((const wxChar*)m_Buffer + startIndex, writeLen);
-                }
-                else
-                {   // the buffer can hold the string, so copy it to the buffer
-                    memcpy(p, (const wxChar*)m_Buffer + startIndex, writeLen * sizeof(wxChar));
-                    p += writeLen;
-                }
-
-                continue;
-            }
-            break;
-
-        case _T(','): // if there is a space before the comma, we just remove it, but we should add a space after the comma
-        case _T('*'):
-        case _T('&'):
-            {
-                if (*(p - 1) <= _T(' '))
-                    --p;
-
-                *p = ch;
-                *++p = _T(' ');
-                ++p;
-            }
-            break;
-
-        case _T('='):
-            {
-                if (*(p - 1) <= _T(' '))
-                {
-                    *p = _T('=');
-                    // Don't add a space after '=' sign, in case another '=' follows it
-                    // (see how the 'else' block below works).
-                    //*++p = _T(' ');
-                    ++p;
-                }
-                else // special handling of "==" "=!" "=>" and "=<"
-                {
-                    switch (*(p - 1))
-                    {
-                    case _T('='):
-                    case _T('!'):
-                    case _T('>'):
-                    case _T('<'):
-                        {
-                            *p = _T('=');
-                            *++p = _T(' ');
-                            ++p;
-                        }
-                        break;
-
-                    default:
-                        {
-                            *p = _T(' ');
-                            *++p = _T('=');
-                            *++p = _T(' ');
-                            ++p;
-                        }
-                        break;
-                    }
-                }
-            }
-            break;
-
-        case _T(' '): // we only add a space if the former char is not a space, also not a '('
-        case _T('\r'): // the tab char are regard as space
-        case _T('\t'):
-            {
-                if (*(p - 1) != _T(' ') && *(p - 1) != _T('('))
-                {
-                    *p = _T(' ');
-                    ++p;
-                }
-            }
-            break;
-
-        case _T('\n'): // we need keep the \n for records paras correct position
-            if (*(p - 1) == _T(' '))
-                --p;
-            if (*(p - 1) != _T('('))
-            {
-                *p = ch;
-                ++p;
-            }
-            break;
-
-        default: // any other case, we can directly copy the char
-            {
-                *p = ch;
-                ++p;
-            }
-            break;
+            str << token;
         }
-
-        if (p >= realBuffer + maxBufferLen)
+        else if (token == _T("=")) // space before and after "="
         {
-            str.Append(realBuffer, p - realBuffer);
-            p = realBuffer;
+            str << _T(" ") << token << _T(" ");
         }
-
-        MoveToNextChar();
+        else if (token == _T(",")) // space after ","
+        {
+            str << token << _T(" ");
+        }
+        else
+        {
+            // there is a space between two identifier like token
+            // (int var)
+            // also, a space between '*' and "var"
+            // (int* var) or (int& var)
+            // space between ')' and the "int"
+            // (__attribute__(xxx) int var)
+            wxChar nextChar = token[0];
+            wxChar lastChar = str.Last();
+            if (   (wxIsalpha(nextChar) || nextChar == _T('_'))
+                && (   wxIsalnum(lastChar) || lastChar == _T('_')
+                    || lastChar == _T('*') || lastChar == _T('&') || lastChar == _T(')')))
+            {
+                str << _T(" ") << token;
+            }
+            else // otherwise, no space is needed
+                str << token;
+        }
 
         if (level == 0)
             break;
     }//while (NotEOF())
 
-    if (p > realBuffer)
-        str.Append(realBuffer, p - realBuffer);
-    TRACE(_T("ReadParentheses(): %s, line=%u"), str.wx_str(), m_LineNumber);
-    if (str.Len() > 512)
-    {   TRACE(_T("ReadParentheses(): Catch exception 2: %lu"), static_cast<unsigned long>(str.Len())); }
 }
 
-bool Tokenizer::SkipToEOL(bool nestBraces)
+bool Tokenizer::SkipToEOL()
 {
-    TRACE(_T("%s : line=%u, CurrentChar='%c', PreviousChar='%c', NextChar='%c', nestBrace(%d)"),
+    TRACE(_T("%s : line=%u, CurrentChar='%c', PreviousChar='%c', NextChar='%c'"),
           wxString(__PRETTY_FUNCTION__, wxConvUTF8).wc_str(), m_LineNumber, CurrentChar(),
-          PreviousChar(), NextChar(), nestBraces ? 1 : 0);
+          PreviousChar(), NextChar());
 
     // skip everything until we find EOL
     for (;;)
@@ -744,11 +556,6 @@ bool Tokenizer::SkipToEOL(bool nestBraces)
                 if (CurrentChar() == _T('\n'))
                     break;
             }
-
-            if (nestBraces && CurrentChar() == _T('{'))
-                ++m_NestLevel;
-            else if (nestBraces && CurrentChar() == _T('}'))
-                --m_NestLevel;
 
             MoveToNextChar();
         }
@@ -787,40 +594,6 @@ bool Tokenizer::SkipToInlineCommentEnd()
     return NotEOF();
 }
 
-bool Tokenizer::SkipBlock(const wxChar& ch)
-{
-    // skip blocks () [] {} <>
-    wxChar match;
-    switch (ch)
-    {
-        case '(': match = ')'; break;
-        case '[': match = ']'; break;
-        case '{': match = '}'; break;
-        case '<': match = '>'; break;
-        default : return false;
-    }
-
-    MoveToNextChar();
-    int nestLevel = 1; // counter for nested blocks (xxx())
-    while (NotEOF())
-    {
-        while (SkipWhiteSpace() || SkipString() || SkipComment())
-            ;
-
-        if (CurrentChar() == ch)
-            ++nestLevel;
-        else if (CurrentChar() == match)
-            --nestLevel;
-
-        MoveToNextChar();
-
-        if (nestLevel == 0)
-            break;
-    }
-
-    return NotEOF();
-}
-
 // if we really move forward, return true, which means we have the new m_TokenIndex
 // if we stay here, return false
 bool Tokenizer::SkipComment()
@@ -843,20 +616,40 @@ bool Tokenizer::SkipComment()
     else
         return false;     // Not a comment, return false;
 
-    MoveToNextChar(2);    // Skip the comment prompt
+    MoveToNextChar();     // Skip the comment prompt
+    MoveToNextChar();
 
     bool isDoc = false;
     if (m_TokenizerOptions.storeDocumentation)
     {
-        isDoc = (CurrentChar() == '!');	//	"/*!" or "//!"
+        isDoc = (CurrentChar() == '!'); // "/*!" or "//!"
 
-        if (!isDoc && cstyle) //  "/*" + ?
-            isDoc = (CurrentChar() == '*' && NextChar() != '/'); //	"/**" but not "/**/" and not //*
+        // "/*" + ? check
+        // "/**" is OK, but not "/**/" and not //* and not /***
+        // since
+        // /********* not a doxygen comment ********** */
+        // or
+        // /********************************************/
+        // /*       also not a doxygen comment         */
+        // /********************************************/
+        if (!isDoc && cstyle)
+            isDoc = (CurrentChar() == '*' && NextChar() != '/' && NextChar() != '*');
 
         if (!isDoc && !cstyle) // "//" + ?
             isDoc = (CurrentChar() == '/' && NextChar() != '/'); // "///" but not "////"
     }
 
+    // m_ExpressionResult.empty() == true means we are running the Tokenizer in global level, no
+    // preprocessor branch is entered.
+    // m_ExpressionResult.top() == true means we are in the top true branch of the conditional
+    // preprocessor directives, those scopes covers the valid doxygen comments. E.g.
+    // #if 1
+    //     /** valid documents */
+    //     int a;
+    // #else
+    //     /** invalid documents */
+    //     int a;
+    // #endif
     if (isDoc)
         isDoc = m_ExpressionResult.empty() || m_ExpressionResult.top();
 
@@ -872,7 +665,8 @@ bool Tokenizer::SkipComment()
                 SkipToChar('*');
                 if (NextChar() == '/') // end of a C style comment
                 {
-                    MoveToNextChar(2);
+                    MoveToNextChar();
+                    MoveToNextChar();
                     break;
                 }
                 if (!MoveToNextChar())
@@ -909,7 +703,8 @@ bool Tokenizer::SkipComment()
                 c = CurrentChar();
                 if (c == '*' && NextChar() == '/') //End of block comment
                 {
-                    MoveToNextChar(2); // eat '/'
+                    MoveToNextChar();   // eat '/'
+                    MoveToNextChar();
                     break;
                 }
                 else
@@ -944,16 +739,30 @@ bool Tokenizer::SkipComment()
             }
         }
 
-        if (doc.size()>0) // don't push empty strings
+        if (doc.size() > 0) // don't push empty strings
         {
             doc += _T('\n');
 
             if (lineToAppend >= 0) // we have document after the token place
             {
-                if (m_LastTokenIdx != -1)
-                    m_TokenTree->AppendDocumentation(m_LastTokenIdx, m_NextTokenDoc + doc);
+                // if we are reading the macro definition(m_ReadingMacroDefinition==true)
+                // then don't run the AppendDocumentation() to the previous Token. E.g.
+                //     int aaa;
+                //     #define FOO /*!< comments */
+                // That is: we read the "comments", but don't attach to Token aaa, instead, we
+                // translate this kind of comments as "document before the token", at this time
+                // the Token FOO is not constructed yet, but once it is constructed, the "comments"
+                // will attach to Token FOO
+                if (m_ReadingMacroDefinition)
+                    m_NextTokenDoc = doc + m_NextTokenDoc;
+                else
+                {
+                    // we need to attach the document to recent added Token
+                    if (m_LastTokenIdx != -1)
+                        m_TokenTree->AppendDocumentation(m_LastTokenIdx, m_FileIdx, m_NextTokenDoc + doc);
 
-                m_NextTokenDoc.clear();
+                    m_NextTokenDoc.clear();
+                }
             }
             else
             {
@@ -979,61 +788,37 @@ bool Tokenizer::SkipComment()
     return true;
 }
 
-bool Tokenizer::SkipUnwanted()
+bool Tokenizer::SkipPreprocessorBranch()
 {
-    while (SkipWhiteSpace() || SkipComment())
-        ;
-
     wxChar c = CurrentChar();
     const unsigned int startIndex = m_TokenIndex;
 
     if (c == _T('#'))
     {
+        // this use the Lex() to fetch an unexpanded token
         const PreprocessorType type = GetPreprocessorType();
+        // ptOthers is not handled here, we will pass them to Parserthread class
+        // so that #include can be handled in Parserthread
         if (type != ptOthers)
         {
             HandleConditionPreprocessor(type);
             c = CurrentChar();
+            return true;
         }
+        else
+            return false;
     }
 
-    // skip [XXX][YYY]
-    if (m_State & tsSkipSubScrip)
-    {
-        while (c == _T('[') )
-        {
-            SkipBlock('[');
-            SkipWhiteSpace();
-            if (IsEOF())
-                return false;
-            c = CurrentChar();
-        }
-    }
+    if (startIndex != m_TokenIndex)
+        return true;
+    else
+        return false;
+}
 
-    // skip the following = or ?
-    if (m_State & tsSkipEqual)
-    {
-        if (c == _T('=') && NextChar() != _T('=')) //only skip after single equal sign, not double equals sign
-        {
-            if (!SkipToOneOfChars(_T(",;}"), true, true, false))
-                return false;
-        }
-    }
-    else if (m_State & tsSkipQuestion)
-    {
-        if (c == _T('?'))
-        {
-            if (!SkipToOneOfChars(_T(";}"), false, true))
-                return false;
-        }
-    }
-
-    // skip the following white space and comments
-    while (SkipWhiteSpace() || SkipComment())
+bool Tokenizer::SkipUnwanted()
+{
+    while (SkipWhiteSpace() || SkipComment() || SkipPreprocessorBranch())
         ;
-
-    if (startIndex != m_TokenIndex && CurrentChar() == _T('#'))
-        return SkipUnwanted();
 
     return NotEOF();
 }
@@ -1054,7 +839,11 @@ wxString Tokenizer::GetToken()
     else
     {
         if (SkipUnwanted())
-            m_Token = DoGetToken();
+        {
+            m_Token = DoGetToken();// this function always return a fully expanded token
+            if (m_Token == _T("(") && m_State^tsRawExpression)
+                ReadParentheses(m_Token);
+        }
         else
             m_Token.Clear();
     }
@@ -1085,7 +874,11 @@ wxString Tokenizer::PeekToken()
         m_SavedNestingLevel = m_NestLevel;
 
         if (SkipUnwanted())
+        {
             m_PeekToken = DoGetToken();
+            if (m_PeekToken == _T("(") && m_State^tsRawExpression)
+                ReadParentheses(m_PeekToken);
+        }
         else
             m_PeekToken.Clear();
 
@@ -1137,11 +930,32 @@ void Tokenizer::UngetToken()
  */
 wxString Tokenizer::DoGetToken()
 {
-    int start = m_TokenIndex;
-    bool needReplace = false;
+    while(true)
+    {
+        SkipUnwanted();
+        bool identifier = Lex();
+        // only check macro usage on identifier like tokens
+        if (identifier)
+        {
+            bool replaced = CheckMacroUsageAndReplace();
+            // replaced is true means macro expansion happens, so we need to call Lex()
+            if (replaced)
+                continue;
+            else
+                return m_Lex;
+        }
+        else
+            return m_Lex;
+    }
+}
 
-    wxString str;
-    wxChar   c = CurrentChar();
+bool Tokenizer::Lex()
+{
+    int start = m_TokenIndex;
+    // identifier like token
+    bool identifier = false;
+
+    wxChar c = CurrentChar();
 
     if (c == '_' || wxIsalpha(c))
     {
@@ -1153,16 +967,19 @@ wxString Tokenizer::DoGetToken()
             c = CurrentChar(); // repeat
 
         if (IsEOF())
-            return wxEmptyString;
+        {
+            m_Lex = wxEmptyString;
+            return false;
+        }
 
-        needReplace = true;
-        str = m_Buffer.Mid(start, m_TokenIndex - start);
+        identifier = true;
+        m_Lex = m_Buffer.Mid(start, m_TokenIndex - start);
     }
 #ifdef __WXMSW__ // This is a Windows only bug!
     // fetch non-English characters, see more details in: http://forums.codeblocks.org/index.php/topic,11387.0.html
     else if (c == 178 || c == 179 || c == 185)
     {
-        str = c;
+        m_Lex = c;
         MoveToNextChar();
     }
 #endif
@@ -1173,15 +990,18 @@ wxString Tokenizer::DoGetToken()
             MoveToNextChar();
 
         if (IsEOF())
-            return wxEmptyString;
+        {
+            m_Lex = wxEmptyString;
+            return false;
+        }
 
-        str = m_Buffer.Mid(start, m_TokenIndex - start);
+        m_Lex = m_Buffer.Mid(start, m_TokenIndex - start);
     }
     else if ( (c == '"') || (c == '\'') )
     {
         SkipString();
         //Now, we are after the end of the C-string, so return the whole string as a token.
-        str = m_Buffer.Mid(start, m_TokenIndex - start);
+        m_Lex = m_Buffer.Mid(start, m_TokenIndex - start);
     }
     else if (c == ':')
     {
@@ -1190,39 +1010,28 @@ wxString Tokenizer::DoGetToken()
             MoveToNextChar();
             MoveToNextChar();
             // this only copies a pointer, but operator= allocates memory and does a memcpy!
-            str.assign(TokenizerConsts::colon_colon);
+            m_Lex.assign(TokenizerConsts::colon_colon);
         }
         else
         {
             MoveToNextChar();
-            str.assign(TokenizerConsts::colon);
+            m_Lex.assign(TokenizerConsts::colon);
         }
     }
-    else if (c == '<')
+    else if (c == '=')
     {
-        if (m_State&tsSingleAngleBrace)
+        wxChar next = NextChar();
+        if (next == _T('=') || next == _T('!') || next == _T('>') || next == _T('<'))
         {
-            if ( !SkipToOneOfChars(  _T(">"), true, true)   )
-                return wxEmptyString;
             MoveToNextChar();
-            str= m_Buffer.Mid(start, m_TokenIndex - start);
+            MoveToNextChar();
+            m_Lex = m_Buffer.Mid(start, m_TokenIndex - start);
         }
         else
         {
-            str = c;
             MoveToNextChar();
-        }
-    }
-    else if (c == '(')
-    {
-        if (m_State & tsReadRawExpression)
-        {
-            str = c;
-            MoveToNextChar();
-        }
-        else
-        {
-            ReadParentheses(str);
+            // this only copies a pointer, but operator= allocates memory and does a memcpy!
+            m_Lex.assign(TokenizerConsts::equal);
         }
     }
     else
@@ -1232,140 +1041,54 @@ wxString Tokenizer::DoGetToken()
         else if (c == '}')
             --m_NestLevel;
 
-        str = c;
+        m_Lex = c;
         MoveToNextChar();
     }
-    // m_FirstRemainingLength != 0 means we are in macro replace mode, but when m_TokenIndex goes
-    // forward and exceed the anchor point where we start the macro replacement, we should stop and
-    // reset to non-macro replace mode
-    if (m_FirstRemainingLength != 0 && m_BufferLen - m_FirstRemainingLength < m_TokenIndex)
-    {
-        m_FirstRemainingLength = 0;
-        m_RepeatReplaceCount = 0;
-    }
 
-    if (needReplace && m_State ^ tsReadRawExpression)
-        GetReplacedToken(str);
+    // when m_TokenIndex exceeds the anchor point where we start the macro replacement, we should
+    // pop the remembered macro usage
+    while ( !m_ExpandedMacros.empty() && m_ExpandedMacros.front().m_End < m_TokenIndex)
+        m_ExpandedMacros.pop_front();
 
-    return str;
+    return identifier;
 }
 
-void Tokenizer::GetReplacedToken(wxString& str)
+bool Tokenizer::CheckMacroUsageAndReplace()
 {
-    // this indicates we are already in macro replacement mode
-    if (m_RepeatReplaceCount > 0)
+    const int id = m_TokenTree->TokenExists(m_Lex, -1, tkMacroDef);
+    if (id != -1)
     {
-        const int id = m_TokenTree->TokenExists(str, -1, tkMacroDef);
-        if (id != -1)
-        {
-            const Token* token = m_TokenTree->at(id);
-            if (token)
-            {
-                bool replaced = false;
-                if (!token->m_Args.IsEmpty())
-                    replaced = ReplaceMacroUsage(token);
-                else if (token->m_FullType != token->m_Name)
-                    replaced = ReplaceBufferText(token->m_FullType);
-
-                if (replaced || token->m_FullType.IsEmpty())
-                {
-                    SkipUnwanted();
-                    // recursive call the DoGetToken function here
-                    str = DoGetToken();
-                }
-            }
-        }
-        // if in macro expansion mode, we don't want to let the user replacement rule executed
-        // again, so just returned
-        return;
+        const Token* token = m_TokenTree->at(id);
+        if (token)
+            return ReplaceMacroUsage(token);// either object like macro or function like macro can be handled
     }
-
-    wxStringHashMap::const_iterator it = s_Replacements.find(str);
-    if (it == s_Replacements.end())
-        return;
-
-    TRACE(_T("GetReplacedToken() : Replacing '%s' with '%s' (file='%s', line='%u')."), it->first.wx_str(),
-          it->second.wx_str(), m_Filename.wx_str(), m_LineNumber);
-
-    if (it->second.IsEmpty())
-    {
-        SkipUnwanted();
-        str = DoGetToken();
-    }
-    else if (it->second[0] == _T('+'))
-    {
-        while (SkipWhiteSpace() || SkipComment())
-            ;
-        DoGetToken(); // eat (...)
-        wxString target = (const wxChar*)it->second + 1;
-        if (target.IsEmpty())
-        {
-            while (SkipWhiteSpace() || SkipComment())
-                ;
-            str = DoGetToken();
-        }
-        else if (target != str && ReplaceBufferText(target))
-            str = DoGetToken();
-    }
-    else if (it->second[0] == _T('-'))
-    {
-        // sample rule:  "BEGIN_EVENT_TABLE" -> "-END_EVENT_TABLE"
-        // we should skip to END_EVENT_TABLE, so the contents between BEGIN_EVENT_TABLE and
-        // END_EVENT_TABLE is skipped, also the "()" after END_EVENT_TABLE is skipped.
-        wxString end((const wxChar*)it->second + 1); // strip the '-'
-        if (end.IsEmpty())
-            return;
-
-        while (NotEOF())
-        {
-            while (SkipComment() || SkipWhiteSpace())
-                ;
-            if (CurrentChar() == end[0])
-            {
-                if (DoGetToken() == end)
-                    break;
-            }
-            else
-                MoveToNextChar();
-        }
-
-        // eat ()
-        SkipUnwanted();
-        str = DoGetToken();
-        if (str[0] == _T('('))
-        {
-            SkipUnwanted();
-            str = DoGetToken();
-        }
-    }
-    else if (it->second[0] == _T('@'))
-    {
-        // trigger the macro replacement mode, so that we can look up the keyword in TokenTree for a
-        // macro usage, note that ReplaceBufferText() below just move the token index backword, but
-        // don't change the buffer
-        if(ReplaceBufferText(it->first))
-            str = DoGetToken();
-
-    }
-    else // for other user defined rules, just do a buffer content replacement
-    {
-        if (it->second != str && ReplaceBufferText(it->second))
-            str = DoGetToken();
-    }
+    return false;
 }
 
+// if we have such code
+// #define A 1
+// #define B 1
+//
+// #if A+B == 2
+//    ^begin   ^end
+//
+// we first call SkipToEOL() which actually doesn't care about macro expansion
+// then, we get the end of the expression
+// now, we rewind the m_TokenIndex to the "begin", and run DoGetToken(), thus we get all the
+// expanded tokens like "1+1 == 2"
+// thus, we can calculate the expression.
 bool Tokenizer::CalcConditionExpression()
 {
     // need to force the tokenizer to read raw expression
     const TokenizerState oldState = m_State;
-    m_State = tsReadRawExpression; // parentheses are not returned as a single token
+    m_State = tsRawExpression; // parentheses are not returned as a single token
 
     // we need to know what is the end of the preprocessor directive by calling SkipToEOL(), which
     // go to the end of the current logical line. After that, we rewind the m_TokenIndex and parse
     // the tokens again until we pass the EOL.
     const unsigned int undoIndex = m_TokenIndex;
     const unsigned int undoLine = m_LineNumber;
-    SkipToEOL(false);
+    SkipToEOL();
     // length from the current m_TokenIndex to the End
     const unsigned int untouchedBufferLen = m_BufferLen - m_TokenIndex;
     m_TokenIndex = undoIndex;
@@ -1376,15 +1099,20 @@ bool Tokenizer::CalcConditionExpression()
     // rescan happens once macro expansion happens (m_TokenIndex rewind)
     while (m_TokenIndex < m_BufferLen - untouchedBufferLen)
     {
-        while (SkipComment())
-            ;
-        wxString token = DoGetToken();
 
-        // skip the whitespace token here, not before the DoGetToken(), because if we call
-        // SkipWhiteSpace() before DoGetToken(), we may get a token AFTER the index located by
-        // m_BufferLen - untouchedBufferLen
-        if (token[0] <= _T(' ') || token == _T("\\"))
-            continue;
+        // we run the while loop explicitly before calling the DoGetToken() function.
+        // if m_TokenIndex pass the EOL, we should stop the calculating of preprocessor
+        // condition
+        while (SkipWhiteSpace() || SkipComment())
+            ;
+
+        if (m_TokenIndex >= m_BufferLen - untouchedBufferLen)
+            break;
+
+
+        wxString token = DoGetToken();
+        // token are generally the fully macro expanded tokens, so mostly they are some numbers,
+        // unknown tokens are pushed to Infix express, and later they will be seen as 0.
 
         if(token.Len() > 0
            && (token[0] == _T('_') || wxIsalnum(token[0]))) // identifier like token
@@ -1398,22 +1126,7 @@ bool Tokenizer::CalcConditionExpression()
                     exp.AddToInfixExpression(_T("0"));
             }
             else
-            {
-                const int id = m_TokenTree->TokenExists(token, -1, tkMacroDef);
-                if (id != -1)
-                {
-                    const Token* tk = m_TokenTree->at(id);
-                    if (tk)
-                    {
-                        if(ReplaceMacroUsage(tk))
-                            continue;
-                        else
-                            exp.AddToInfixExpression(_T("0")); // macro expansion fall back value
-                    }
-                }
-                else
-                    exp.AddToInfixExpression(token); // not a macro usage token
-            }
+                exp.AddToInfixExpression(token); // not a macro usage token
         }
         else if (token.StartsWith(_T("0x"))) // hex value
         {
@@ -1449,20 +1162,23 @@ bool Tokenizer::IsMacroDefined()
     while (SkipWhiteSpace() || SkipComment())
         ;
     bool haveParen = false;
-    wxString token = DoGetToken();
+    Lex();
+    wxString token = m_Lex;
     if (token == _T("("))
     {
         haveParen = true;
         while (SkipWhiteSpace() || SkipComment())
             ;
-        token = DoGetToken();
+        // don't call DoGetToken() here, because it automatically expand macros, call Lex() instead.
+        Lex();
+        token = m_Lex;
     }
     int id = m_TokenTree->TokenExists(token, -1, tkMacroDef);
     if (haveParen)
     {
         while (SkipWhiteSpace() || SkipComment())
             ;
-        DoGetToken(); // eat the ")"
+        Lex(); // eat the ")"
     }
     return (id != -1);
 }
@@ -1535,7 +1251,7 @@ void Tokenizer::SkipToEndConditionPreprocessor()
             // #endif
             else if (current == _T('e') && next == _T('n'))
             {
-                SkipToEOL(false);
+                SkipToEOL();
                 break;
             }
         }
@@ -1545,6 +1261,8 @@ void Tokenizer::SkipToEndConditionPreprocessor()
 
 PreprocessorType Tokenizer::GetPreprocessorType()
 {
+    // those saved m_TokenIndex only rewind for
+    // the type of ptOthers, so that Parserthread can handle # include xxxx
     const unsigned int undoIndex = m_TokenIndex;
     const unsigned int undoLine = m_LineNumber;
     const unsigned int undoNest = m_NestLevel;
@@ -1552,8 +1270,8 @@ PreprocessorType Tokenizer::GetPreprocessorType()
     MoveToNextChar();
     while (SkipWhiteSpace() || SkipComment())
         ;
-
-    const wxString token = DoGetToken();
+    Lex();
+    const wxString token = m_Lex;
 
     switch (token.Len())
     {
@@ -1574,11 +1292,15 @@ PreprocessorType Tokenizer::GetPreprocessorType()
                 return ptIfdef;
             else if (token == TokenizerConsts::kw_endif)
                 return ptEndif;
+            else if (token == TokenizerConsts::kw_undef)
+                return ptUndef;
             break;
 
         case 6:
             if (token == TokenizerConsts::kw_ifndef)
                 return ptIfndef;
+            else if (token == TokenizerConsts::kw_define)
+                return ptDefine;
             break;
 
         case 7:
@@ -1595,6 +1317,7 @@ PreprocessorType Tokenizer::GetPreprocessorType()
             break;
     }
 
+    // only rewind m_TokenIndex for ptOthers
     m_TokenIndex = undoIndex;
     m_LineNumber = undoLine;
     m_NestLevel = undoNest;
@@ -1613,7 +1336,7 @@ void Tokenizer::HandleConditionPreprocessor(const PreprocessorType type)
                 result = CalcConditionExpression();
             else
             {
-                SkipToEOL(false);
+                SkipToEOL();
                 result = true;
             }
 
@@ -1632,7 +1355,7 @@ void Tokenizer::HandleConditionPreprocessor(const PreprocessorType type)
             else
                 result = true; // default value
 
-            SkipToEOL(false);
+            SkipToEOL();
             m_ExpressionResult.push(result);
             if (!result)
                SkipToNextConditionPreprocessor();
@@ -1648,7 +1371,7 @@ void Tokenizer::HandleConditionPreprocessor(const PreprocessorType type)
             else
                 result = true; // default value
 
-            SkipToEOL(false);
+            SkipToEOL();
             m_ExpressionResult.push(result);
             if (!result)
                SkipToNextConditionPreprocessor();
@@ -1675,7 +1398,7 @@ void Tokenizer::HandleConditionPreprocessor(const PreprocessorType type)
             if (!m_ExpressionResult.empty() && !m_ExpressionResult.top())
             {
                 result = IsMacroDefined();
-                SkipToEOL(false);
+                SkipToEOL();
             }
 
             if (result)
@@ -1692,7 +1415,7 @@ void Tokenizer::HandleConditionPreprocessor(const PreprocessorType type)
             if (!m_ExpressionResult.empty() && !m_ExpressionResult.top())
             {
                 result = !IsMacroDefined();
-                SkipToEOL(false);
+                SkipToEOL();
             }
 
             if (result)
@@ -1706,7 +1429,7 @@ void Tokenizer::HandleConditionPreprocessor(const PreprocessorType type)
         {
             TRACE(_T("HandleConditionPreprocessor() : #else at line = %u"), m_LineNumber);
             if (!m_ExpressionResult.empty() && !m_ExpressionResult.top())
-                SkipToEOL(false);
+                SkipToEOL();
             else
                 SkipToEndConditionPreprocessor();
         }
@@ -1715,13 +1438,28 @@ void Tokenizer::HandleConditionPreprocessor(const PreprocessorType type)
         case ptEndif:
         {
             TRACE(_T("HandleConditionPreprocessor() : #endif at line = %u"), m_LineNumber);
-            SkipToEOL(false);
+            SkipToEOL();
             if (!m_ExpressionResult.empty())
                 m_ExpressionResult.pop();
         }
         break;
 
+        case ptDefine:
+        {
+            TRACE(_T("HandleConditionPreprocessor() : #define at line = %u"), m_LineNumber);
+            HandleDefines();
+        }
+        break;
+
+        case ptUndef:
+        {
+            TRACE(_T("HandleConditionPreprocessor() : #undef at line = %u"), m_LineNumber);
+            HandleUndefs();
+        }
+        break;
+
         case ptOthers:
+            // ptOthers won't happens here, because it was excluded before calling this function
         default:
             break;
     }
@@ -1744,14 +1482,16 @@ bool Tokenizer::SplitArguments(wxArrayString& results)
         ;
 
     const TokenizerState oldState = m_State;
-    m_State = tsReadRawExpression;
+    m_State = tsRawExpression;
+    const unsigned int oldNestLevel = m_NestLevel; //
 
     int level = 1; // include '('
 
     wxString piece;
     while (NotEOF())
     {
-        wxString token = DoGetToken();
+        Lex();
+        wxString token = m_Lex;
         if (token.IsEmpty())
             break;
 
@@ -1786,36 +1526,38 @@ bool Tokenizer::SplitArguments(wxArrayString& results)
 
     // reset tokenizer's functionality
     m_State = oldState;
+    m_NestLevel = oldNestLevel;
     return true;
 }
 
-bool Tokenizer::ReplaceBufferText(const wxString& target)
+bool Tokenizer::ReplaceBufferText(const wxString& target, const Token* macro)
 {
     if (target.IsEmpty())
-        return false;
+        return true; // the token is removed from the buffer, return true, so we need to fetch another token
 
-    if (m_RepeatReplaceCount > 0)
+    if (m_ExpandedMacros.size() >= s_MaxMacroReplaceDepth)
     {
-        if (m_RepeatReplaceCount >= s_MaxRepeatReplaceCount)
-        {
-            m_TokenIndex = m_BufferLen - m_FirstRemainingLength;
+        // do not clear the macro expansion stack here
+        // since it will destroy the anchor point recorded, for example
+        // if we have a macro definition "#define member FF.member", and expanding the usage.
+        // "FF" could also be expanded many times, which exceeds the s_MaxMacroReplaceDepth
+        // When initially expand the "FF.member", the anchor point is recorded as below.
+        //                                     ^-----anchor point
+        // This protect the "member" get expand again. But if we reset the m_ExpandedMacros when
+        // expanding the "FF", then the "member" will expand again, which leads to infinite loop.
+        //m_ExpandedMacros.clear();
 
-            // Reset undo token
-            m_SavedTokenIndex   = m_UndoTokenIndex = m_TokenIndex;
-            m_SavedLineNumber   = m_UndoLineNumber = m_LineNumber;
-            m_SavedNestingLevel = m_UndoNestLevel  = m_NestLevel;
-
-            m_PeekAvailable = false;
-            return true; // NOTE: we have to skip the problem token by returning true.
-        }
-        else
-            ++m_RepeatReplaceCount;
+        m_PeekAvailable = false;
+        return true; // NOTE: we have to skip the problem token by returning true.
     }
-    else  // Set replace parsing state, and save first replace token index
+    else if (macro)  // Set replace parsing state, and save first replace token index
     {
-        m_FirstRemainingLength = m_BufferLen - m_TokenIndex;
-        ++m_RepeatReplaceCount;
+        ExpandedMacro rep;
+        rep.m_End = m_TokenIndex;
+        rep.m_Macro = macro;
+        m_ExpandedMacros.push_front(rep);
     }
+    // we don't push the stack if we don't have macro referenced(macro is 0)
 
     // Keep all in one line
     wxString substitute(target);
@@ -1842,6 +1584,14 @@ bool Tokenizer::ReplaceBufferText(const wxString& target)
         m_Buffer.insert(0, wxString(_T(' '), diffLen));
         m_BufferLen += diffLen;
         m_TokenIndex += diffLen;
+        // loop the macro expansion stack and adjust them
+        for (std::list<ExpandedMacro>::iterator i = m_ExpandedMacros.begin();
+             i != m_ExpandedMacros.end();
+             ++i)
+        {
+            (*i).m_Begin += diffLen;
+            (*i).m_End += diffLen;
+        }
     }
 
     // Replacement backward
@@ -1854,6 +1604,9 @@ bool Tokenizer::ReplaceBufferText(const wxString& target)
 
     // move the token index to the beginning of the substituted text
     m_TokenIndex -= len;
+
+    if (macro)
+        m_ExpandedMacros.front().m_Begin = m_TokenIndex;
 
     // Reset undo token
     m_SavedTokenIndex   = m_UndoTokenIndex = m_TokenIndex;
@@ -1868,9 +1621,19 @@ bool Tokenizer::ReplaceBufferText(const wxString& target)
 
 bool Tokenizer::ReplaceMacroUsage(const Token* tk)
 {
+    // loop on the m_ExpandedMacros to see the macro is already used
+    for (std::list<ExpandedMacro>::iterator i = m_ExpandedMacros.begin();
+         i != m_ExpandedMacros.end();
+         ++i)
+    {
+        if (tk == (*i).m_Macro)
+            return false; // this macro is already used
+    }
+
     wxString macroExpandedText;
     if ( GetMacroExpandedText(tk, macroExpandedText) )
-        return ReplaceBufferText(macroExpandedText);
+        return ReplaceBufferText(macroExpandedText, tk);
+
     return false;
 }
 
@@ -1946,7 +1709,7 @@ void Tokenizer::SetLastTokenIdx(int tokenIdx)
     if (tokenIdx != -1 && !m_NextTokenDoc.IsEmpty())
     {
         if (m_ExpressionResult.empty() || m_ExpressionResult.top())
-            m_TokenTree->AppendDocumentation(tokenIdx, m_NextTokenDoc);
+            m_TokenTree->AppendDocumentation(tokenIdx, m_FileIdx, m_NextTokenDoc);
     }
     m_NextTokenDoc.clear();
 }
@@ -2015,7 +1778,11 @@ bool Tokenizer::GetMacroExpandedText(const Token* tk, wxString& expandedText)
     // ..... AAA ;
     //          ^----m_TokenIndex, we can't find a opening '('
     if (!SplitArguments(actualArgs))
+    {
+        // reset the m_Lex since macro expansion failed
+        m_Lex = tk->m_Name;
         return false;
+    }
 
     // NOTE: some macros have no args (see above)
     //if (actualArgs.GetCount()==0)
@@ -2164,4 +1931,88 @@ int Tokenizer::GetFirstTokenPosition(const wxChar* buffer, const size_t bufferLe
     }
 
     return pos;
+}
+
+void Tokenizer::HandleDefines()
+{
+    size_t lineNr = GetLineNumber();
+    while (SkipWhiteSpace() || SkipComment())
+        ;
+    Lex();
+    wxString token = m_Lex; // read the token after #define
+    if (token.IsEmpty())
+        return;
+
+    // do *NOT* use m_Tokenizer.GetToken()
+    // e.g.
+    // #define AAA
+    // #ifdef AAA
+    // void fly() {}
+    // #endif
+    // The AAA is not add to token tree, so, when call GetToken(), "#ifdef AAA" parse failed
+    wxString readToEOL = ReadToEOL(true);
+    wxString para; // function-like macro's args
+    wxString replaceList;
+    if (!readToEOL.IsEmpty())
+    {
+        // a '(' char follow the macro name (without space between them) is regard as a
+        // function like macro definition
+        if (readToEOL[0] == wxT('(')) // function-like macro definition
+        {
+            int level = 1;
+            size_t pos = 0;
+            while (level && pos < readToEOL.Len())
+            {
+                wxChar ch = readToEOL.GetChar(++pos);
+                if      (ch == wxT(')'))
+                    --level;
+                else if (ch == wxT('('))
+                    ++level;
+            }
+            para = readToEOL.Left(++pos);
+            replaceList << readToEOL.Right(readToEOL.Len() - (++pos));
+        }
+        else // variable like macro definition
+            replaceList << readToEOL;
+    }
+
+    AddMacroDefinition(token, lineNr, para, replaceList);
+}
+
+void Tokenizer::HandleUndefs()
+{
+    while (SkipWhiteSpace() || SkipComment())
+        ;
+    Lex();
+    wxString token = m_Lex; // read the token after #undef
+    if (!token.IsEmpty())
+    {
+        int index = m_TokenTree->TokenExists(token, -1, tkMacroDef);
+        if (index != wxNOT_FOUND)
+        {
+            TRACE(F(_T("macro %s undefined from %s:%d"), token.wx_str(), m_Filename.wx_str(), m_LineNumber));
+            m_TokenTree->erase(index);
+        }
+    }
+    SkipToEOL();
+}
+
+void Tokenizer::AddMacroDefinition(wxString name, int line, wxString para, wxString substitues)
+{
+    int index = m_TokenTree->TokenExists(name, -1, tkMacroDef);
+    Token* token;
+
+    if (index != wxNOT_FOUND) // already exists, so overwrite! or report a warning!
+        token = m_TokenTree->at(index);
+    else
+    {
+        token = new Token(name, m_FileIdx, line, ++m_TokenTree->m_TokenTicketCount);
+        token->m_TokenKind = tkMacroDef;// type of the token
+        token->m_ParentIndex = -1;      // global namespace
+        m_TokenTree->insert(token); // by default, it was added under m_ParentIndex member
+    }
+
+    // update the definition
+    token->m_Args = para;           // macro call's formal args
+    token->m_FullType = substitues; // replace list
 }
