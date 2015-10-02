@@ -94,6 +94,7 @@ namespace ParserConsts
     const wxChar   space_chr       (_T(' '));
     const wxChar   tab_chr         (_T('\t'));
     const wxString equals          (_T("="));
+    const wxChar   equals_chr      (_T('='));
     const wxString hash            (_T("#"));
     const wxChar   hash_chr        (_T('#'));
     const wxString plus            (_T("+"));
@@ -114,11 +115,15 @@ namespace ParserConsts
     const wxChar   semicolon_chr   (_T(';'));
     const wxChar   opbracket_chr   (_T('('));
     const wxChar   clbracket_chr   (_T(')'));
+    const wxString opbracket       (_T("("));
+    const wxString clbracket       (_T(")"));
     const wxString opbrace         (_T("{"));
     const wxChar   opbrace_chr     (_T('{'));
     const wxString clbrace         (_T("}"));
     const wxChar   clbrace_chr     (_T('}'));
+    const wxString oparray         (_T("["));
     const wxChar   oparray_chr     (_T('['));
+    const wxString clarray         (_T("]"));
     const wxChar   clarray_chr     (_T(']'));
     const wxString tilde           (_T("~"));
     const wxString lt              (_T("<"));
@@ -126,6 +131,7 @@ namespace ParserConsts
     const wxString gt              (_T(">"));
     const wxChar   gt_chr          (_T('>'));
     const wxChar   underscore_chr  (_T('_'));
+    const wxChar   question_chr    (_T('?'));
     // length: 2
     const wxString dcolon          (_T("::"));
     const wxString opbracesemicolon(_T("{;"));
@@ -141,6 +147,7 @@ namespace ParserConsts
     const wxString kw__C_          (_T("\"C\""));
     const wxString kw_for          (_T("for"));
     const wxString kw_try          (_T("try"));
+    const wxString commasemicolonopbrace(_T(",;{"));
     // length: 4
     const wxString kw___at         (_T("__at"));
     const wxString kw_else         (_T("else"));
@@ -153,13 +160,11 @@ namespace ParserConsts
     const wxString kw_catch        (_T("catch"));
     const wxString kw_class        (_T("class"));
     const wxString kw_const        (_T("const"));
-    const wxString kw_undef        (_T("undef"));
     const wxString kw_union        (_T("union"));
     const wxString kw_using        (_T("using"));
     const wxString kw_throw        (_T("throw"));
     const wxString kw_while        (_T("while"));
     // length: 6
-    const wxString kw_define       (_T("define"));
     const wxString kw_delete       (_T("delete"));
     const wxString kw_extern       (_T("extern"));
     const wxString kw_friend       (_T("friend"));
@@ -257,7 +262,7 @@ void ParserThread::SkipBlock()
     // need to force the tokenizer _not_ skip anything
     // or else default values for template params would cause us to miss everything (because of the '=' symbol)
     TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsSkipNone);
+    m_Tokenizer.SetState(tsNormal);
 
     // skip tokens until we reach }
     // block nesting is taken into consideration too ;)
@@ -286,7 +291,7 @@ void ParserThread::SkipAngleBraces()
     // need to force the tokenizer _not_ skip anything
     // or else default values for template params would cause us to miss everything (because of the '=' symbol)
     TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsSkipNone);
+    m_Tokenizer.SetState(tsNormal);
 
     int nestLvl = 0;
     // NOTE: only exit this loop with 'break' so the tokenizer's state can
@@ -323,7 +328,7 @@ bool ParserThread::ParseBufferForNamespaces(const wxString& buffer, NameSpaceVec
     result.clear();
 
     wxArrayString nsStack;
-    m_Tokenizer.SetState(tsSkipUnWanted);
+    m_Tokenizer.SetState(tsNormal);
     m_ParsingTypedef = false;
 
     while (m_Tokenizer.NotEOF() && IS_ALIVE)
@@ -343,9 +348,7 @@ bool ParserThread::ParseBufferForNamespaces(const wxString& buffer, NameSpaceVec
                 name = wxEmptyString; // anonymous namespace
             else
             {
-                m_Tokenizer.SetState(tsSkipNone);
                 wxString next = m_Tokenizer.PeekToken();
-                m_Tokenizer.SetState(tsSkipUnWanted);
                 if (next == ParserConsts::equals)
                 {
                     SkipToOneOfChars(ParserConsts::semicolonclbrace);
@@ -545,7 +548,7 @@ void ParserThread::DoParse()
     // need to reset tokenizer's behaviour
     // don't forget to reset that if you add any early exit condition!
     TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsSkipUnWanted);
+    m_Tokenizer.SetState(tsNormal);
 
     m_Str.Clear();
     m_LastToken.Clear();
@@ -643,27 +646,39 @@ void ParserThread::DoParse()
 
             case ParserConsts::hash_chr:
                 {
-                    TokenizerState oldState2 = m_Tokenizer.GetState();
-                    m_Tokenizer.SetState(tsSkipNone);
-
                     token = m_Tokenizer.GetToken();
-                    if      (token == ParserConsts::kw_include)
+                    // only the ptOthers kinds of preprocessor directives will be passed here
+                    // see details in: Tokenizer::SkipPreprocessorBranch()
+                    // those could be: "#include" or "#warning" or "#xxx" and more
+                    if (token == ParserConsts::kw_include)
                         HandleIncludes();
-                    else if (token == ParserConsts::kw_define)
-                        HandleDefines();
-                    else if (token == ParserConsts::kw_undef)
-                        HandleUndefs();
-                    else
-                        m_Tokenizer.SkipToEOL(false);
+                    else // handle "#warning" or "#xxx" and more, just skip them
+                        m_Tokenizer.SkipToEOL();
 
                     m_Str.Clear();
-                    m_Tokenizer.SetState(oldState2);
                 }
                 break;
 
             case ParserConsts::ptr_chr:
+            case ParserConsts::ref_chr:
                 {
                     m_PointerOrRef << token;
+                }
+                break;
+
+            case ParserConsts::equals_chr:
+                {
+                    // pattern int a = 3;
+                    // m_Str.Clear();
+                    SkipToOneOfChars(ParserConsts::commasemicolonopbrace, true);
+                    m_Tokenizer.UngetToken();
+                }
+                break;
+
+            case ParserConsts::question_chr:
+                {
+                    m_Str.Clear();
+                    SkipToOneOfChars(ParserConsts::semicolonopbrace, true);
                 }
                 break;
 
@@ -682,6 +697,15 @@ void ParserThread::DoParse()
                         SkipToOneOfChars(ParserConsts::semicolonclbrace);
                     }
                 }
+                break;
+
+            case ParserConsts::oparray_chr:
+                {
+                    SkipToOneOfChars(ParserConsts::clarray);
+                }
+                break;
+
+            case ParserConsts::comma_chr:
                 break;
 
             default:
@@ -779,11 +803,8 @@ void ParserThread::DoParse()
                 // (2) using namespace A::B;
                 // (3) using A::B;
                 // (4) using A = B;
-                TokenizerState oldState2 = m_Tokenizer.GetState();
-                m_Tokenizer.SetState(tsSkipNone); // don't want to skip equals
                 token = m_Tokenizer.GetToken();
                 wxString peek = m_Tokenizer.PeekToken();
-                m_Tokenizer.SetState(oldState2);
                 if (peek == ParserConsts::kw_namespace)
                 {
                     while (true) // support full namespaces
@@ -971,11 +992,10 @@ void ParserThread::DoParse()
                 // extern template
                 //    const codecvt<char, char, mbstate_t>&
                 //    use_facet<codecvt<char, char, mbstate_t> >(const locale&);
-                m_Tokenizer.SetState(tsTemplateArgument);
-                m_TemplateArgument = m_Tokenizer.GetToken();
+                // read <> as a whole token
+                m_TemplateArgument = ReadAngleBrackets();
                 TRACE(_T("DoParse() : Template argument='%s'"), m_TemplateArgument.wx_str());
                 m_Str.Clear();
-                m_Tokenizer.SetState(tsSkipUnWanted);
                 if (m_Tokenizer.PeekToken() != ParserConsts::kw_class)
                     m_TemplateArgument.clear();
             }
@@ -985,8 +1005,6 @@ void ParserThread::DoParse()
             }
             else if (token == ParserConsts::kw_operator)
             {
-                TokenizerState oldState2 = m_Tokenizer.GetState();
-                m_Tokenizer.SetState(tsSkipNone);
                 wxString func = token;
                 while (IS_ALIVE)
                 {
@@ -1010,7 +1028,6 @@ void ParserThread::DoParse()
                     else
                         break;
                 }
-                m_Tokenizer.SetState(oldState2);
                 HandleFunction(func, true);
                 m_Str.Clear();
             }
@@ -1083,15 +1100,8 @@ void ParserThread::DoParse()
             wxString peek = m_Tokenizer.PeekToken();
             if (!peek.IsEmpty())
             {
-                // pattern: AAA or AAA (...)
-                int id = m_TokenTree->TokenExists(token, -1, tkMacroDef);
-                // if AAA is a macro definition, then expand this macro
-                if (id != -1)
-                {
-                    HandleMacroExpansion(id, peek);
-                }
-                // any function like pattern
-                else if (   (peek.GetChar(0) == ParserConsts::opbracket_chr)
+
+                if (   (peek.GetChar(0) == ParserConsts::opbracket_chr)
                          && m_Options.handleFunctions )
                 {
                     if (   m_Str.IsEmpty()
@@ -1258,13 +1268,17 @@ void ParserThread::DoParse()
                     m_Tokenizer.GetToken(); // eat ::
                 }
                 // NOTE: opbracket_chr already handled above
-                else if (peek==ParserConsts::semicolon)
+                else if (   peek==ParserConsts::semicolon
+                         || peek==ParserConsts::oparray_chr
+                         || peek==ParserConsts::equals_chr)
                 {
                     if (   !m_Str.IsEmpty()
                         && (    wxIsalpha(token.GetChar(0))
                             || (token.GetChar(0) == ParserConsts::underscore_chr) ) )
                     {
                         // pattern: m_Str AAA;
+                        // pattern: m_Str AAA[X][Y];
+                        // pattern: m_Str AAA = BBB;
                         // where AAA is the variable name, m_Str contains type string
                         if (m_Options.handleVars)
                         {
@@ -1274,6 +1288,14 @@ void ParserThread::DoParse()
                         }
                         else
                             SkipToOneOfChars(ParserConsts::semicolonclbrace, true, true);
+                    }
+
+                    if (peek==ParserConsts::oparray_chr)
+                        SkipToOneOfChars(ParserConsts::clarray);
+                    else if (peek==ParserConsts::equals_chr)
+                    {
+                        SkipToOneOfChars(ParserConsts::commasemicolonopbrace, true);
+                        m_Tokenizer.UngetToken();
                     }
                 }
                 else if (!m_EncounteredNamespaces.empty())
@@ -1603,8 +1625,6 @@ Token* ParserThread::DoAddToken(TokenKind       kind,
     newToken->m_IsTemp     = m_Options.isTemp;
     newToken->m_IsOperator = isOperator;
 
-    m_Tokenizer.SetLastTokenIdx(newToken->m_Index);
-
     if (!isImpl)
     {
         newToken->m_FileIdx = m_FileIdx;
@@ -1618,6 +1638,10 @@ Token* ParserThread::DoAddToken(TokenKind       kind,
         newToken->m_ImplLineEnd   = implLineEnd;
         m_TokenTree->InsertTokenBelongToFile(newToken->m_ImplFileIdx, newToken->m_Index);
     }
+
+    // this will append the doxygen style comments to the Token
+    m_Tokenizer.SetLastTokenIdx(newToken->m_Index);
+
     TRACE(_T("DoAddToken() : Added/updated token '%s' (%d), kind '%s', type '%s', actual '%s'. Parent is %s (%d)"),
           name.wx_str(), newToken->m_Index, newToken->GetTokenKindString().wx_str(), newToken->m_FullType.wx_str(),
           newToken->m_BaseType.wx_str(), m_TokenTree->at(newToken->m_ParentIndex) ?
@@ -1719,83 +1743,9 @@ void ParserThread::HandleIncludes()
     }
 }
 
-void ParserThread::HandleDefines()
-{
-    size_t lineNr = m_Tokenizer.GetLineNumber();
-    TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsReadRawExpression); // do not use macro replace, we need raw token
-    wxString token = m_Tokenizer.GetToken(); // read the token after #define
-    m_Tokenizer.SetState(oldState);
-    if (token.IsEmpty())
-        return;
-
-    // do *NOT* use m_Tokenizer.GetToken()
-    // e.g.
-    // #define AAA
-    // #ifdef AAA
-    // void fly() {}
-    // #endif
-    // The AAA is not add to token tree, so, when call GetToken(), "#ifdef AAA" parse failed
-    m_Str.Clear();
-    wxString readToEOL = m_Tokenizer.ReadToEOL(false, true);
-    wxString para; // function-like macro's args
-    if (!readToEOL.IsEmpty())
-    {
-        // a '(' char follow the macro name (without space between them) is regard as a
-        // function like macro definition
-        if (readToEOL[0] == ParserConsts::opbracket_chr) // function-like macro definition
-        {
-            int level = 1;
-            size_t pos = 0;
-            while (level && pos < readToEOL.Len())
-            {
-                wxChar ch = readToEOL.GetChar(++pos);
-                if      (ch == ParserConsts::clbracket_chr)
-                    --level;
-                else if (ch == ParserConsts::opbracket_chr)
-                    ++level;
-            }
-            para = readToEOL.Left(++pos);
-            m_Str << readToEOL.Right(readToEOL.Len() - (++pos));
-        }
-        else // variable like macro definition
-            m_Str << readToEOL;
-    }
-
-    // macro definitions's scope are always in the global namespace, so we need to temporary switch
-    // the m_LastParent token to Null
-    Token* oldParent = m_LastParent;
-    m_LastParent = 0L;
-    DoAddToken(tkMacroDef, token, lineNr, lineNr, m_Tokenizer.GetLineNumber(), para, false, true);
-    m_LastParent = oldParent;
-}
-
-void ParserThread::HandleUndefs()
-{
-    TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsReadRawExpression);
-    const wxString token = m_Tokenizer.GetToken(); // read the token after #undef
-    m_Tokenizer.SetState(oldState);
-    if (!token.IsEmpty())
-    {
-        Token* tk = TokenExists(token, nullptr, tkMacroDef);
-        if (tk != nullptr)
-            m_TokenTree->erase(tk);
-    }
-
-    m_Tokenizer.SkipToEOL(false);
-}
-
 void ParserThread::HandleNamespace()
 {
     wxString ns = m_Tokenizer.GetToken();
-    Token* tk = TokenExists(ns, nullptr, tkMacroDef);
-    if (tk && tk->m_Name != tk->m_FullType)
-    {
-        if (m_Tokenizer.ReplaceBufferText(tk->m_FullType))
-            ns = m_Tokenizer.GetToken();
-    }
-
     int line = m_Tokenizer.GetLineNumber();
 
     if (ns == ParserConsts::opbrace)
@@ -1815,12 +1765,12 @@ void ParserThread::HandleNamespace()
         // not to skip the usually unwanted tokens. One of those tokens is the
         // "assignment" (=).
         // we just have to remember to revert this setting below, or else problems will follow
-        m_Tokenizer.SetState(tsSkipNone);
+        m_Tokenizer.SetState(tsNormal);
 
         wxString next = m_Tokenizer.PeekToken(); // named namespace
         if (next==ParserConsts::opbrace)
         {
-            m_Tokenizer.SetState(tsSkipUnWanted);
+            m_Tokenizer.SetState(tsNormal);
 
             // use the existing copy (if any)
             Token* newToken = TokenExists(ns, m_LastParent, tkNamespace);
@@ -1866,7 +1816,7 @@ void ParserThread::HandleNamespace()
             // namespace abi = __cxxabiv1; <-- we 're in this case now
 
             m_Tokenizer.GetToken(); // eat '='
-            m_Tokenizer.SetState(tsSkipUnWanted);
+            m_Tokenizer.SetState(tsNormal);
 
             Token* lastParent = m_LastParent;
             Token* aliasToken = NULL;
@@ -1896,7 +1846,7 @@ void ParserThread::HandleNamespace()
         }
         else
         {
-            m_Tokenizer.SetState(tsSkipUnWanted);
+            m_Tokenizer.SetState(tsNormal);
             // probably some kind of error in code ?
             SkipToOneOfChars(ParserConsts::semicolonopbrace);
         }
@@ -1909,7 +1859,7 @@ void ParserThread::HandleClass(EClassType ct)
     // as we 're manually parsing class decls
     // don't forget to reset that if you add any early exit condition!
     TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsSkipUnWanted);
+    m_Tokenizer.SetState(tsNormal);
 
     int lineNr = m_Tokenizer.GetLineNumber();
     wxString ancestors;
@@ -1952,7 +1902,7 @@ void ParserThread::HandleClass(EClassType ct)
             m_Tokenizer.GetToken(); // eat ":"
             while (IS_ALIVE)
             {
-                wxString tmp = GetClassFromMacro(m_Tokenizer.GetToken());
+                wxString tmp = m_Tokenizer.GetToken();
                 next = m_Tokenizer.PeekToken();
                 // -----------------------------------------------------------
                 if (   tmp == ParserConsts::kw_public
@@ -2076,7 +2026,6 @@ void ParserThread::HandleClass(EClassType ct)
         else if (next == ParserConsts::opbrace)
         // -------------------------------------------------------------------
         {
-            GetRealTypeIfTokenIsMacro(current);
             // for a template class definition like
             // template <typename x, typename y>class AAA : public BBB, CCC {;}
             // we would like to show its ancestors and template formal parameters on the tooltip,
@@ -2709,7 +2658,7 @@ void ParserThread::HandleEnum()
     bool updateValue = true;
 
     const TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsSkipNone);
+    m_Tokenizer.SetState(tsNormal);
 
     while (IS_ALIVE)
     {
@@ -2772,7 +2721,8 @@ bool ParserThread::CalcEnumExpression(Token* tokenParent, long& result, wxString
 {
     // need to force the tokenizer skip raw expression
     const TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsReadRawExpression);
+    // expand macros, but don't read a single parentheses
+    m_Tokenizer.SetState(tsRawExpression);
 
     Expression exp;
     wxString token, next;
@@ -2801,37 +2751,11 @@ bool ParserThread::CalcEnumExpression(Token* tokenParent, long& result, wxString
         if (wxIsalpha(token[0]) || token[0] == ParserConsts::underscore_chr) // handle enum or macro
         {
             const Token* tk = m_TokenTree->at(m_TokenTree->TokenExists(token, tokenParent->m_Index, tkEnumerator));
-            if (!tk)
-                tk = m_TokenTree->at(m_TokenTree->TokenExists(token, -1, tkMacroDef));
 
-            if (tk)
+            if (tk) // the enumerator token
             {
-                if (tk->m_FullType.IsEmpty() || tk->m_FullType == token)
-                {
-                    if (tk->m_Args.IsEmpty())
-                    {
-                        peek = SkipToOneOfChars(ParserConsts::commaclbrace);
-                        exp.Clear();
-                        break;
-                    }
-                    else
-                    {
-                        if (m_Tokenizer.ReplaceBufferText(tk->m_Args))
-                            continue;
-                    }
-                }
-                else if (!tk->m_Args.IsEmpty())
-                {
-                    if (m_Tokenizer.ReplaceMacroUsage(tk))
-                        continue;
-                }
-                else if (wxIsdigit(tk->m_FullType[0]))
-                    token = tk->m_FullType;
-                else if (tk->m_FullType != tk->m_Name)
-                {
-                    if (m_Tokenizer.ReplaceBufferText(tk->m_FullType))
-                        continue;
-                }
+                if (!tk->m_Args.IsEmpty() && wxIsdigit(tk->m_Args[0]))
+                    token = tk->m_Args; // add the value to exp
             }
             else
             {
@@ -3109,21 +3033,6 @@ void ParserThread::HandleTypedef()
     }
 }
 
-void ParserThread::HandleMacroExpansion(int id, const wxString &peek)
-{
-    Token* tk = m_TokenTree->at(id);
-    if (tk)
-    {
-        // comment out the below two lines, since they create too many tokens in the token tree
-        // but we should consider some special tokens such as BEGIN_EVENT_TABLE, EVT_BUTTON.
-        //TRACE(_T("HandleMacroExpansion() : Adding token '%s' (peek='%s')"), tk->m_Name.wx_str(), peek.wx_str());
-        //DoAddToken(tkMacroUse, tk->m_Name, m_Tokenizer.GetLineNumber(), 0, 0, peek);
-
-        if (m_Options.parseComplexMacros)
-            m_Tokenizer.ReplaceMacroUsage(tk);
-    }
-}
-
 bool ParserThread::ReadVarNames()
 {
     bool success = true; // optimistic start value
@@ -3141,6 +3050,10 @@ bool ParserThread::ReadVarNames()
         {
             m_PointerOrRef.Clear();
             break;
+        }
+        else if (token == ParserConsts::oparray)
+        {
+            SkipToOneOfChars(ParserConsts::clarray);
         }
         else if (token == ParserConsts::ptr)     // variable is a pointer
             m_PointerOrRef << token;
@@ -3247,6 +3160,14 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
     bool skip = false;         // skip the next char (do not add to stripped args)
     bool sym  = false;         // current char symbol
     bool one  = true;          // only one argument
+    //   ( int abc = 5 , float * def )
+    //        ^
+    // ptr point to the next char of "int"
+    // word = "int"
+    // sym = true means ptr is point to an identifier like token
+    // here, if we find an identifier like token which is "int", we just skip the next token
+    // until we meet a "," or ")".
+
 
     TRACE(_T("GetBaseArgs() : args='%s'."), args.wx_str());
     baseArgs.Alloc(args.Len() + 1);
@@ -3257,6 +3178,7 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
         switch (*ptr)
         {
         case ParserConsts::eol_chr:
+            // skip the "\r\n"
             while (*ptr != ParserConsts::null && *ptr <= ParserConsts::space_chr)
                 ++ptr;
             break;
@@ -3294,10 +3216,20 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
                 // extract last stripped argument from baseArgs
                 wxString lastStrippedArg;
                 int lastArgComma = baseArgs.Find(ParserConsts::comma_chr, true);
-                if (lastArgComma) lastStrippedArg = baseArgs.Mid(1);
-                else              lastStrippedArg = baseArgs.Mid(lastArgComma);
+                if (lastArgComma)
+                    lastStrippedArg = baseArgs.Mid(1);
+                else
+                    lastStrippedArg = baseArgs.Mid(lastArgComma);
 
+
+                // input:  (float a = 0.0, int* f1(char x, char y), void z)
+                // output: (float, int*, z)
+                // the internal "(char x, char y)" should be removed
                 // No opening brackets in last stripped arg?
+                // this means if we have function pointer in the argument
+                // input:   void foo(double (*fn)(double))
+                // we should not skip the content after '*', since the '(' before '*' is already
+                // pushed to the lastStrippedArg.
                 if ( lastStrippedArg.Find(ParserConsts::opbracket_chr) == wxNOT_FOUND )
                 {
                     baseArgs << *ptr; // append to baseArgs
@@ -3316,8 +3248,11 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
                                 break;
                             brackets--;
                         }
-                        else if (*ptr == ParserConsts::comma_chr)
+                        else if (*ptr == ParserConsts::comma_chr && brackets == 0)
                         {
+                            // don't stop at the inner comma char, such as '^' pointed below
+                            // (float a = 0.0, int* f1(char x, char y), void z)
+                            //                               ^
                             skip = false;
                             break;
                         }
@@ -3331,6 +3266,8 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
             sym  = true;
             break;
         case ParserConsts::oparray_chr: // array handling like for 'int[20]'
+            // [   128   ]  ->   [128]
+            // space between the [] is stripped
             while (   *ptr != ParserConsts::null
                    && *ptr != ParserConsts::clarray_chr )
             {
@@ -3342,6 +3279,9 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
             sym  = true;
             break;
         case ParserConsts::lt_chr: // template arg handling like for 'vector<int>'
+            // <   int   >  ->   <int>
+            // space between the <> is stripped
+            // note that embeded <> such as vector<vector<int>> is not handled here
             while (   *ptr != ParserConsts::null
                    && *ptr != ParserConsts::gt_chr )
             {
@@ -3355,15 +3295,58 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
         case ParserConsts::comma_chr:     // fall through
         case ParserConsts::clbracket_chr: // fall through
         case ParserConsts::opbracket_chr:
+            // ( int abc, .....)
+            // we have just skip the "abc", and now, we see the ","
             if (skip && *ptr == ParserConsts::comma_chr)
-                one = false;
+                one = false; // see a comma, which means we have at least two parameter!
+
+            // try to remove the __attribute__(xxx) decoration in the parameter
+            // such as: int f(__attribute__(xxx) wxCommandEvent & event);
+            // should be convert to : int f(wxCommandEvent & event);
+            if(*ptr == ParserConsts::opbracket_chr && word == ParserConsts::kw_attribute)
+            {
+                // remove the "__attribute__" keywords from the baseArgs
+                // the length of "__attribute__" is 13
+                baseArgs = baseArgs.Mid(0, baseArgs.Len()-13);
+
+                // skip the next "(xxx)
+                int brackets = 1; // skip the first "(" already
+                ptr++; // next char
+
+                while (*ptr != ParserConsts::null)
+                {
+                    if      (*ptr == ParserConsts::opbracket_chr)
+                        brackets++;
+                    else if (*ptr == ParserConsts::clbracket_chr)
+                    {
+                        brackets--;
+                        if (brackets == 0)
+                        {
+                            ptr++;
+                            break;
+                        }
+
+                    }
+                    ptr++; // next char
+                }
+                // skip the spaces after the "__attribute__(xxx)"
+                while (   *ptr     != ParserConsts::null
+                       && *(ptr) == ParserConsts::space_chr )
+                {
+                    ++ptr; // next char
+                }
+                word = _T(""); // reset
+                sym  = false;  // no symbol is added
+                skip = false;  // don't skip the next token
+                break;
+            }
             word = _T(""); // reset
             sym  = true;
             skip = false;
             break;
         default:
             sym = false;
-        }
+        }// switch (*ptr)
 
         // Now handle the char processed in this loop:
         if (!skip || sym)
@@ -3373,7 +3356,7 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
             if (*ptr != ParserConsts::null)
             {
                 baseArgs << *ptr; // append to baseArgs
-                if (wxIsalnum(*ptr) /*|| *ptr != ParserConsts::underscore_chr*/)
+                if (wxIsalnum(*ptr) || *ptr == ParserConsts::underscore_chr)
                     word << *ptr; // append to word
             }
         }
@@ -3412,52 +3395,12 @@ bool ParserThread::GetBaseArgs(const wxString& args, wxString& baseArgs)
     return true;
 }
 
-wxString ParserThread::GetClassFromMacro(const wxString& macro)
-{
-    wxString real(macro);
-    if (GetRealTypeIfTokenIsMacro(real))
-    {
-        Token* tk = TokenExists(real, nullptr, tkClass);
-        if (tk)
-            return tk->m_Name;
-    }
-
-    TRACE(_T("GetClassFromMacro() : macro='%s' -> real='%s'."), macro.wx_str(), real.wx_str());
-
-    return real;
-}
-
-bool ParserThread::GetRealTypeIfTokenIsMacro(wxString& tokenName)
-{
-    bool tokenIsMacro = false;
-    Token* tk = nullptr;
-    int count = 10;
-    while (IS_ALIVE && --count > 0)
-    {
-        tk = TokenExists(tokenName, nullptr, tkMacroDef);
-        if (   !tk
-            || tk->m_FullType.IsEmpty()
-            || tk->m_FullType == tokenName
-            || (   !wxIsalpha(tk->m_FullType[0])
-                && (tk->m_FullType[0] != ParserConsts::underscore_chr) ) )
-        {
-            break;
-        }
-        tokenName = tk->m_FullType;
-        tokenIsMacro = true;
-    }
-
-    TRACE(_T("GetRealTypeIfTokenIsMacro() : tokenIsMacro=%s -> tokenName='%s'."), tokenIsMacro ? wxString(_T("yes")).wx_str() : wxString(_T("no")).wx_str(), tokenName.wx_str());
-
-    return tokenIsMacro;
-}
-
 void ParserThread::GetTemplateArgs()
 {
     // need to force the tokenizer _not_ skip anything
     // otherwise default values for template params would cause us to miss everything (because of the '=' symbol)
     TokenizerState oldState = m_Tokenizer.GetState();
-    m_Tokenizer.SetState(tsSkipNone);
+    m_Tokenizer.SetState(tsNormal);
     m_TemplateArgument.clear();
     int nestLvl = 0;
     // NOTE: only exit this loop with 'break' so the tokenizer's state can
@@ -3747,4 +3690,47 @@ void ParserThread::RefineAnonymousTypeToken(short int typeMask, wxString alias)
         m_Str << m_FileIdx << _T("_") << alias;
         m_TokenTree->RenameToken(unnamedAncestor, m_Str);
     }
+}
+
+wxString ParserThread::ReadAngleBrackets()
+{
+    wxString str = m_Tokenizer.GetToken();
+    if (str != wxT("<"))
+        return wxEmptyString;
+
+    int level = 1; // brace level of '<' and '>'
+
+    while (m_Tokenizer.NotEOF())
+    {
+        wxString token = m_Tokenizer.GetToken();
+        if (token == _T("<"))
+        {
+            ++level;
+            str << token;
+        }
+        else if (token == _T(">"))
+        {
+            --level;
+            str << token;
+            if (level == 0)
+                break;
+
+        }
+        else if (token == _T("*") || token == _T("&") || token == _T(","))
+        {
+            str << token;
+        }
+        else
+        {
+            if (str.Last() == _T('<')) // there is no space between '(' and the following token
+                str << token;
+            else                       // otherwise, a space is needed
+                str << _T(" ") << token;
+        }
+
+        if (level == 0)
+            break;
+    }//while (NotEOF())
+
+    return str;
 }

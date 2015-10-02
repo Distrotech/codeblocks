@@ -64,14 +64,10 @@
 
 #define CC_CODECOMPLETION_DEBUG_OUTPUT 0
 
+// let the global debug macro overwrite the local debug macro value
 #if defined(CC_GLOBAL_DEBUG_OUTPUT)
-    #if CC_GLOBAL_DEBUG_OUTPUT == 1
-        #undef CC_CODECOMPLETION_DEBUG_OUTPUT
-        #define CC_CODECOMPLETION_DEBUG_OUTPUT 1
-    #elif CC_GLOBAL_DEBUG_OUTPUT == 2
-        #undef CC_CODECOMPLETION_DEBUG_OUTPUT
-        #define CC_CODECOMPLETION_DEBUG_OUTPUT 2
-    #endif
+    #undef CC_CODECOMPLETION_DEBUG_OUTPUT
+    #define CC_CODECOMPLETION_DEBUG_OUTPUT CC_GLOBAL_DEBUG_OUTPUT
 #endif
 
 #if CC_CODECOMPLETION_DEBUG_OUTPUT == 1
@@ -425,7 +421,7 @@ int idEditorActivatedTimer      = wxNewId();
 #define REALTIME_PARSING_DELAY    500
 
 // there are many reasons to trigger the refreshing of CC toolbar. But to avoid refreshing
-// the toolbar to often, we add a timer to delay the refresh, this is just like a mouse dwell
+// the toolbar too often, we add a timer to delay the refresh, this is just like a mouse dwell
 // event, which means we do the real job when the editor is stable for a while (no event
 // happens in the delay time period).
 #define TOOLBAR_REFRESH_DELAY     150
@@ -560,7 +556,7 @@ void CodeCompletion::OnAttach()
 
     m_LastFile.clear();
 
-    LoadTokenReplacements();
+    // read options from configure file
     RereadOptions();
 
     // Events which m_NativeParser does not handle will go to the the next event
@@ -602,8 +598,6 @@ void CodeCompletion::OnAttach()
 
 void CodeCompletion::OnRelease(bool appShutDown)
 {
-    SaveTokenReplacements();
-
     m_NativeParser.RemoveClassBrowser(appShutDown);
     m_NativeParser.ClearParsers();
 
@@ -1707,6 +1701,8 @@ void CodeCompletion::RereadOptions()
     m_CCEnableHeaders        = cfg->ReadBool(_T("/enable_headers"),        true);
     m_CCEnablePlatformCheck  = cfg->ReadBool(_T("/platform_check"),        true);
 
+    // update the CC toolbar option, and tick the timer for toolbar
+    // NOTE (ollydbg#1#12/06/14): why?
     if (m_ToolBar)
     {
         UpdateToolBar();
@@ -1739,57 +1735,6 @@ void CodeCompletion::UpdateToolBar()
 
     m_ToolBar->Realize();
     m_ToolBar->SetInitialSize();
-}
-
-void CodeCompletion::LoadTokenReplacements()
-{
-    ConfigManagerContainer::StringToStringMap repl;
-    Manager::Get()->GetConfigManager(_T("code_completion"))->Read(_T("token_replacements"), &repl);
-
-    // Keep this in sync with CodeCompletion::LoadTokenReplacements()
-
-    // for GCC
-    repl[_T("_GLIBCXX_STD")]                    = _T("std");
-    repl[_T("_GLIBCXX_STD_D")]                  = _T("std");
-    repl[_T("_GLIBCXX_STD_P")]                  = _T("std");
-    repl[_T("_GLIBCXX_BEGIN_NESTED_NAMESPACE")] = _T("+namespace std {");
-    repl[_T("_GLIBCXX_END_NESTED_NAMESPACE")]   = _T("}");
-    repl[_T("_GLIBCXX_BEGIN_NAMESPACE")]        = _T("+namespace std {");
-    repl[_T("_GLIBCXX_END_NAMESPACE")]          = _T("}");
-    repl[_T("_GLIBCXX_BEGIN_NAMESPACE_TR1")]    = _T("namespace tr1 {");
-    repl[_T("_GLIBCXX_END_NAMESPACE_TR1")]      = _T("}");
-
-    // for GCC 4.6.x
-    repl[_T("_GLIBCXX_VISIBILITY")]             = _T("+");
-    repl[_T("_GLIBCXX_BEGIN_NAMESPACE_VERSION")]= _T("");
-    repl[_T("_GLIBCXX_END_NAMESPACE_VERSION")]  = _T("");
-
-    // for VC
-    repl[_T("_STD_BEGIN")]                      = _T("namespace std {");
-    repl[_T("_STD_END")]                        = _T("}");
-    repl[_T("_STDEXT_BEGIN")]                   = _T("namespace std {");
-    repl[_T("_STDEXT_END")]                     = _T("}");
-
-    // for wxWidgets
-    repl[_T("BEGIN_EVENT_TABLE")]               = _T("-END_EVENT_TABLE");
-    repl[_T("WXDLLEXPORT")]                     = _T("");
-    repl[_T("WXDLLIMPORT")]                     = _T("");
-    repl[_T("WXEXPORT")]                        = _T("");
-    repl[_T("WXIMPORT")]                        = _T("");
-
-    // apply
-    Tokenizer::ConvertToHashReplacementMap(repl);
-}
-
-void CodeCompletion::SaveTokenReplacements()
-{
-    const wxStringHashMap& hashRepl = Tokenizer::GetTokenReplacementsMap();
-    ConfigManagerContainer::StringToStringMap repl;
-    wxStringHashMap::const_iterator it = hashRepl.begin();
-    for (; it != hashRepl.end(); it++)
-        repl[it->first] = it->second;
-
-    Manager::Get()->GetConfigManager(_T("code_completion"))->Write(_T("token_replacements"), repl);
 }
 
 void CodeCompletion::OnUpdateUI(wxUpdateUIEvent& event)
@@ -2293,8 +2238,10 @@ void CodeCompletion::OnWorkspaceChanged(CodeBlocksEvent& event)
     if (IsAttached() && m_InitDone)
     {
         cbProject* project = Manager::Get()->GetProjectManager()->GetActiveProject();
-        // if we receive a workspace changed event, but the project is NULL, this means the user
-        // try to close the application, so we don't need to update the UI here.
+        // if we receive a workspace changed event, but the project is NULL, this means two condition
+        // could happen.
+        // (1) the user try to close the application, so we don't need to update the UI here.
+        // (2) the user just open a new project after cb started up
         if (project)
         {
             if (!m_NativeParser.GetParserByProject(project))
@@ -2795,7 +2742,8 @@ int CodeCompletion::DoAllMethodsImpl()
                 str << ed->GetLineIndentString(line - 1);
             if (addDoxgenComment)
                 str << _T("/** @brief ") << token->m_Name << _T("\n  *\n  * @todo: document this function\n  */\n");
-            wxString type = token->m_BaseType;
+            wxString type = token->m_FullType;
+            // "int *" or "int &" ->  "int*" or "int&"
             if ((type.Last() == _T('&') || type.Last() == _T('*')) && type[type.Len() - 2] == _T(' '))
             {
                 type[type.Len() - 2] = type.Last();
