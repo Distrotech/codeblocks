@@ -5400,9 +5400,11 @@ void wxScintilla::OnSize(wxSizeEvent& WXUNUSED(evt))
     if (m_swx) {
         wxSize sz = GetClientSize();
         m_swx->DoSize(sz.x, sz.y);
+/* C::B begin */
 #if defined(__WXX11__)
         PositionScrollbars();
 #endif
+/* C::B end */
     }
 }
 
@@ -5889,7 +5891,7 @@ wxScintillaEvent::wxScintillaEvent(const wxScintillaEvent& event):
 /*static*/ wxVersionInfo wxScintilla::GetLibraryVersionInfo()
 {
     /* C::B -> Don't forget to change version number here and in wxscintilla.h at the top */
-    return wxVersionInfo("Scintilla", 3, 57, 0, "Scintilla 3.57");
+    return wxVersionInfo("Scintilla", 3, 60, 0, "Scintilla 3.60");
 }
 #endif
 /* C::B end */

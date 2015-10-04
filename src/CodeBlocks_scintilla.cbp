@@ -194,12 +194,14 @@
 					<Add directory="include/mozilla_chardet/xpcom" />
 					<Add directory="include/mozilla_chardet/xpcom/base" />
 					<Add directory="include/mozilla_chardet/xpcom/glue" />
+					<Add directory="exchndl/win32/include" />
 				</Compiler>
 				<Linker>
 					<Add option="-Wl,--enable-auto-import" />
 					<Add option="-Wl,--no-undefined" />
 					<Add library="codeblocks" />
 					<Add library="wxpropgrid" />
+					<Add library="exchndl" />
 					<Add library="shfolder" />
 					<Add library="kernel32" />
 					<Add library="user32" />
@@ -216,12 +218,16 @@
 					<Add library="advapi32" />
 					<Add library="wsock32" />
 					<Add directory="devel" />
+					<Add directory="exchndl/win32/lib" />
 				</Linker>
 				<ExtraCommands>
+					<Add before="cmd /c if exist devel\exchndl.dll del devel\exchndl.dll" />
 					<Add after="cmd /c if not exist devel\share\CodeBlocks mkdir devel\share\CodeBlocks" />
 					<Add after="zip -jq9 devel\share\CodeBlocks\resources.zip src\resources\*.xrc" />
 					<Add after="zip -jq9 devel\share\CodeBlocks\start_here.zip src\resources\start_here\*.html src\resources\start_here\*.png" />
 					<Add after='cmd /c &quot;cd src\resources &amp; zip -0 -q ..\..\devel\share\CodeBlocks\resources.zip images\*.png images\16x16\*.png&quot;' />
+					<Add after="cmd /c if not exist devel\exchndl.dll if exist exchndl\win32\bin\*.dll xcopy /Y exchndl\win32\bin\*.dll devel\" />
+					<Add after="cmd /c if not exist devel\symsrv.yes if exist exchndl\win32\bin\symsrv.yes xcopy /Y exchndl\win32\bin\symsrv.yes devel\" />
 					<Mode after="always" />
 				</ExtraCommands>
 			</Target>
@@ -1338,6 +1344,21 @@
 		<Unit filename="scripts/startup.script">
 			<Option target="sdk" />
 		</Unit>
+		<Unit filename="scripts/tests/menu_test_plugin.script">
+			<Option target="src" />
+		</Unit>
+		<Unit filename="scripts/tests/script_test_plugin.script">
+			<Option target="src" />
+		</Unit>
+		<Unit filename="scripts/tests/test_base.script">
+			<Option target="src" />
+		</Unit>
+		<Unit filename="scripts/tests/user_dialog_test_plugin.script">
+			<Option target="src" />
+		</Unit>
+		<Unit filename="scripts/tests/wx_test.script">
+			<Option target="src" />
+		</Unit>
 		<Unit filename="scripts/wx_help.script">
 			<Option target="src" />
 		</Unit>
@@ -1614,6 +1635,9 @@
 		</Unit>
 		<Unit filename="sdk/newfromtemplatedlg.cpp">
 			<Option target="sdk" />
+		</Unit>
+		<Unit filename="sdk/nullptr.cpp">
+			<Option target="&lt;{~None~}&gt;" />
 		</Unit>
 		<Unit filename="sdk/personalitymanager.cpp">
 			<Option target="sdk" />
@@ -2212,6 +2236,9 @@
 		<Unit filename="sdk/wxscintilla/src/scintilla/include/SciLexer.h">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/wxscintilla/src/scintilla/include/Sci_Position.h">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/include/Scintilla.h">
 			<Option target="scintilla" />
 		</Unit>
@@ -2255,6 +2282,9 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexBasic.cxx">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexBatch.cxx">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexBibTeX.cxx">
@@ -2302,6 +2332,9 @@
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexDMIS.cxx">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexDiff.cxx">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexECL.cxx">
 			<Option target="scintilla" />
 		</Unit>
@@ -2312,6 +2345,9 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexErlang.cxx">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexErrorList.cxx">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexFlagship.cxx">
@@ -2371,6 +2407,9 @@
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexMagik.cxx">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexMake.cxx">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexMarkdown.cxx">
 			<Option target="scintilla" />
 		</Unit>
@@ -2392,13 +2431,13 @@
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexNsis.cxx">
 			<Option target="scintilla" />
 		</Unit>
+		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexNull.cxx">
+			<Option target="scintilla" />
+		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexOScript.cxx">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexOpal.cxx">
-			<Option target="scintilla" />
-		</Unit>
-		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexOthers.cxx">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexPB.cxx">
@@ -2429,6 +2468,9 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexProgress.cxx">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexProps.cxx">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/lexers/LexPython.cxx">
@@ -2702,6 +2744,9 @@
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/src/PerLine.h">
+			<Option target="scintilla" />
+		</Unit>
+		<Unit filename="sdk/wxscintilla/src/scintilla/src/Position.h">
 			<Option target="scintilla" />
 		</Unit>
 		<Unit filename="sdk/wxscintilla/src/scintilla/src/PositionCache.cxx">

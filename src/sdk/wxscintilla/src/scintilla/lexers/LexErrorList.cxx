@@ -43,12 +43,12 @@ static bool IsAlphabetic(int ch) {
 	return IsASCII(ch) && isalpha(ch);
 }
 
-static inline bool AtEOL(Accessor &styler, unsigned int i) {
+static inline bool AtEOL(Accessor &styler, Sci_PositionU i) {
 	return (styler[i] == '\n') ||
 	       ((styler[i] == '\r') && (styler.SafeGetCharAt(i + 1) != '\n'));
 }
 
-static int RecogniseErrorListLine(const char *lineBuffer, unsigned int lengthLine, int &startValue) {
+static int RecogniseErrorListLine(const char *lineBuffer, Sci_PositionU lengthLine, Sci_Position &startValue) {
 	if (lineBuffer[0] == '>') {
 		// Command or return status
 		return SCE_ERR_CMD;
@@ -146,7 +146,7 @@ static int RecogniseErrorListLine(const char *lineBuffer, unsigned int lengthLin
 			stCtagsStart, stCtagsFile, stCtagsStartString, stCtagsStringDollar, stCtags,
 			stUnrecognized
 		} state = stInitial;
-		for (unsigned int i = 0; i < lengthLine; i++) {
+		for (Sci_PositionU i = 0; i < lengthLine; i++) {
 			char ch = lineBuffer[i];
 			char chNext = ' ';
 			if ((i + 1) < lengthLine)
@@ -172,7 +172,7 @@ static int RecogniseErrorListLine(const char *lineBuffer, unsigned int lengthLin
 					canBeCtags = false;
 				}
 			} else if (state == stGccStart) {	// <filename>:
-				state = Is1To9(ch) ? stGccDigit : stUnrecognized;
+				state = Is0To9(ch) ? stGccDigit : stUnrecognized;
 			} else if (state == stGccDigit) {	// <filename>:<line>
 				if (ch == ':') {
 					state = stGccColumn;	// :9.*: is GCC
@@ -203,7 +203,7 @@ static int RecogniseErrorListLine(const char *lineBuffer, unsigned int lengthLin
 				} else if ((ch == ':' && chNext == ' ') || (ch == ' ')) {
 					// Possibly Delphi.. don't test against chNext as it's one of the strings below.
 					char word[512];
-					unsigned int j, chPos;
+					Sci_PositionU j, chPos;
 					unsigned numstep;
 					chPos = 0;
 					if (ch == ' ')
@@ -259,19 +259,91 @@ static int RecogniseErrorListLine(const char *lineBuffer, unsigned int lengthLin
 	}
 }
 
+#define CSI "\033["
+
+namespace {
+
+bool SequenceEnd(int ch) {
+	return (ch == 0) || ((ch >= '@') && (ch <= '~'));
+}
+
+int StyleFromSequence(const char *seq) {
+	int bold = 0;
+	int colour = 0;
+	while (!SequenceEnd(*seq)) {
+		if (Is0To9(*seq)) {
+			int base = *seq - '0';
+			if (Is0To9(seq[1])) {
+				base = base * 10;
+				base += seq[1] - '0';
+				seq++;
+			}
+			if (base == 0) {
+				colour = 0;
+				bold = 0;
+			}
+			else if (base == 1) {
+				bold = 1;
+			}
+			else if (base >= 30 && base <= 37) {
+				colour = base - 30;
+			}
+		}
+		seq++;
+	}
+	return SCE_ERR_ES_BLACK + bold * 8 + colour;
+}
+
+}
+
 static void ColouriseErrorListLine(
     char *lineBuffer,
-    unsigned int lengthLine,
-    unsigned int endPos,
+    Sci_PositionU lengthLine,
+    Sci_PositionU endPos,
     Accessor &styler,
-	bool valueSeparate) {
-	int startValue = -1;
+	bool valueSeparate,
+	bool escapeSequences) {
+	Sci_Position startValue = -1;
 	int style = RecogniseErrorListLine(lineBuffer, lengthLine, startValue);
-	if (valueSeparate && (startValue >= 0)) {
-		styler.ColourTo(endPos - (lengthLine - startValue), style);
-		styler.ColourTo(endPos, SCE_ERR_VALUE);
+	if (escapeSequences && strstr(lineBuffer, CSI)) {
+		const int startPos = endPos - lengthLine;
+		const char *linePortion = lineBuffer;
+		int startPortion = startPos;
+		int portionStyle = style;
+		while (const char *startSeq = strstr(linePortion, CSI)) {
+			if (startSeq > linePortion) {
+				styler.ColourTo(startPortion + (startSeq - linePortion), portionStyle);
+			}
+			const char *endSeq = startSeq + 2;
+			while (!SequenceEnd(*endSeq))
+				endSeq++;
+			const int endSeqPosition = startPortion + (endSeq - linePortion) + 1;
+			switch (*endSeq) {
+			case 0:
+				styler.ColourTo(endPos, SCE_ERR_ESCSEQ_UNKNOWN);
+				return;
+			case 'm':	// Colour command
+				styler.ColourTo(endSeqPosition, SCE_ERR_ESCSEQ);
+				portionStyle = StyleFromSequence(startSeq+2);
+				break;
+			case 'K':	// Erase to end of line -> ignore
+				styler.ColourTo(endSeqPosition, SCE_ERR_ESCSEQ);
+				break;
+			default:
+				styler.ColourTo(endSeqPosition, SCE_ERR_ESCSEQ_UNKNOWN);
+				portionStyle = style;
+			}
+			startPortion = endSeqPosition;
+			linePortion = endSeq + 1;
+		}
+		styler.ColourTo(endPos, portionStyle);
 	} else {
-		styler.ColourTo(endPos, style);
+		if (valueSeparate && (startValue >= 0)) {
+			styler.ColourTo(endPos - (lengthLine - startValue), style);
+			styler.ColourTo(endPos, SCE_ERR_VALUE);
+		} else {
+			styler.ColourTo(endPos, style);
+		}
 	}
 }
 
@@ -279,7 +351,7 @@ static void ColouriseErrorListDoc(Sci_PositionU startPos, Sci_Position length, i
 	char lineBuffer[10000];
 	styler.StartAt(startPos);
 	styler.StartSegment(startPos);
-	unsigned int linePos = 0;
+	Sci_PositionU linePos = 0;
 
 	// property lexer.errorlist.value.separate
 	//	For lines in the output pane that are matches from Find in Files or GCC-style
@@ -287,17 +359,22 @@ static void ColouriseErrorListDoc(Sci_PositionU startPos, Sci_Position length, i
 	//	line with style 21 used for the rest of the line.
 	//	This allows matched text to be more easily distinguished from its location.
 	bool valueSeparate = styler.GetPropertyInt("lexer.errorlist.value.separate", 0) != 0;
-	for (unsigned int i = startPos; i < startPos + length; i++) {
+
+	// property lexer.errorlist.escape.sequences
+	//	Set to 1 to interpret escape sequences.
+	const bool escapeSequences = styler.GetPropertyInt("lexer.errorlist.escape.sequences") != 0;
+
+	for (Sci_PositionU i = startPos; i < startPos + length; i++) {
 		lineBuffer[linePos++] = styler[i];
 		if (AtEOL(styler, i) || (linePos >= sizeof(lineBuffer) - 1)) {
 			// End of line (or of line buffer) met, colourise it
 			lineBuffer[linePos] = '\0';
-			ColouriseErrorListLine(lineBuffer, linePos, i, styler, valueSeparate);
+			ColouriseErrorListLine(lineBuffer, linePos, i, styler, valueSeparate, escapeSequences);
 			linePos = 0;
 		}
 	}
 	if (linePos > 0) {	// Last line does not have ending characters
-		ColouriseErrorListLine(lineBuffer, linePos, startPos + length - 1, styler, valueSeparate);
+		ColouriseErrorListLine(lineBuffer, linePos, startPos + length - 1, styler, valueSeparate, escapeSequences);
 	}
 }
 

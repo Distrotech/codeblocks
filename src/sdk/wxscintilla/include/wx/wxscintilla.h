@@ -23,7 +23,7 @@
 #include <wx/defs.h>
 
 /* C::B -> Don't forget to change version number here and in wxscintilla.cpp at the bottom */
-#define wxSCINTILLA_VERSION _T("3.57.0")
+#define wxSCINTILLA_VERSION _T("3.60.0")
 
 #include <wx/control.h>
 #include <wx/dnd.h>
@@ -175,6 +175,7 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_CHARSET_MAC 77
 #define wxSCI_CHARSET_OEM 255
 #define wxSCI_CHARSET_RUSSIAN 204
+#define wxSCI_CHARSET_OEM866 866
 #define wxSCI_CHARSET_CYRILLIC 1251
 #define wxSCI_CHARSET_SHIFTJIS 128
 #define wxSCI_CHARSET_SYMBOL 2
@@ -1007,6 +1008,24 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_ERR_JAVA_STACK 20
 #define wxSCI_ERR_VALUE 21
 #define wxSCI_ERR_GCC_INCLUDED_FROM 22
+#define wxSCI_ERR_ESCSEQ 23
+#define wxSCI_ERR_ESCSEQ_UNKNOWN 24
+#define wxSCI_ERR_ES_BLACK 40
+#define wxSCI_ERR_ES_RED 41
+#define wxSCI_ERR_ES_GREEN 42
+#define wxSCI_ERR_ES_BROWN 43
+#define wxSCI_ERR_ES_BLUE 44
+#define wxSCI_ERR_ES_MAGENTA 45
+#define wxSCI_ERR_ES_CYAN 46
+#define wxSCI_ERR_ES_GRAY 47
+#define wxSCI_ERR_ES_DARK_GRAY 48
+#define wxSCI_ERR_ES_BRIGHT_RED 49
+#define wxSCI_ERR_ES_BRIGHT_GREEN 50
+#define wxSCI_ERR_ES_YELLOW 51
+#define wxSCI_ERR_ES_BRIGHT_BLUE 52
+#define wxSCI_ERR_ES_BRIGHT_MAGENTA 53
+#define wxSCI_ERR_ES_BRIGHT_CYAN 54
+#define wxSCI_ERR_ES_WHITE 55
 
 /// Lexical states for SCLEX_BATCH
 #define wxSCI_BAT_DEFAULT 0
@@ -2217,6 +2236,7 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_COFFEESCRIPT_COMMENTBLOCK 22
 #define wxSCI_COFFEESCRIPT_VERBOSE_REGEX 23
 #define wxSCI_COFFEESCRIPT_VERBOSE_REGEX_COMMENT 24
+#define wxSCI_COFFEESCRIPT_INSTANCEPROPERTY 25
 
 /// Lexical states for SCLEX_AVS
 #define wxSCI_AVS_DEFAULT 0
