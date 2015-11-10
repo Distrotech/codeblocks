@@ -22,6 +22,8 @@
 #include <wx/timer.h>
 #include <wx/string.h>
 
+#include "settings.h" // DLLIMPORT
+
 #if wxUSE_POPUPWIN
     #include <wx/popupwin.h>
     typedef wxPopupWindow wxInfoWindowBase;
@@ -34,7 +36,7 @@
 #include <list>
 #include <algorithm>
 
-class InfoWindow : public wxInfoWindowBase
+class DLLIMPORT InfoWindow : public wxInfoWindowBase
 {
         InfoWindow(const wxString& title, const wxString& message, unsigned int delay, unsigned int hysteresis);
         virtual ~InfoWindow();

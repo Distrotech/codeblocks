@@ -2227,15 +2227,17 @@ void ParserThread::HandleFunction(wxString& name, bool isOperator, bool isPointe
         int pos = name.find(ParserConsts::ptr);
 
         // pattern: m_Str AAA (*BBB) (...);
-        if (peek == ParserConsts::semicolon && pos != wxNOT_FOUND)
+        // pattern: m_Str AAA (*BBB) (...) = some_function;
+        if (pos != wxNOT_FOUND && (peek == ParserConsts::semicolon || peek == ParserConsts::equals))
         {
             name.RemoveLast();  // remove ")"
             name.Remove(0, pos+1).Trim(false); // remove "(* "
 
             // pattern: m_Str AAA (*BBB[X][Y]) (...);
+            // Trim(true) for safety, in case the name contains a trailing space
             pos = name.find(ParserConsts::oparray_chr);
             if (pos != wxNOT_FOUND)
-                name.Remove(pos);
+                name.Remove(pos).Trim(true);
 
             TRACE(_T("HandleFunction() : Add token name='")+name+_T("', args='")+args+_T("', return type='") + m_Str+ _T("'"));
             Token* newToken =  DoAddToken(tkFunction, name, lineNr, 0, 0, args);
@@ -2413,13 +2415,12 @@ void ParserThread::HandleConditionalArguments()
     // (var <= 12 && (getType() != 23))
     wxString args = m_Tokenizer.GetToken();
 
-    // remove braces, we should replace them with spaces, so that we have some extra spaces at the
-    // end of the buffer
+    // remove braces
     if (args.StartsWith(_T("(")))
-        args[0] = _T(' ');
+        args = args.Mid(1, args.length() - 1);
 
     if (args.EndsWith(_T(")")))
-        args[args.length() - 1] = _T(' ');
+        args = args.Mid(0, args.length() - 1);
 
     // parse small tokens inside for loop head
     TokenTree tree;
@@ -2515,6 +2516,23 @@ void ParserThread::HandleForLoopArguments()
 
         bool createNewToken = false;
         bool finished = false;
+
+        // pattern  for(int i = 5; ...)
+        // there is a "=" after the token "i"
+        if (peek == ParserConsts::equals)
+        {
+            // skip to ',' or ';'
+            while (IS_ALIVE)
+            {
+                smallTokenizer.GetToken();
+
+                peek = smallTokenizer.PeekToken();
+                if (peek == ParserConsts::comma
+                    || peek == ParserConsts::semicolon
+                    || peek.empty())
+                    break;
+            }
+        }
 
         if (peek == ParserConsts::comma)
         {

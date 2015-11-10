@@ -8,6 +8,7 @@
 
 #include "wx/wxscintilla.h"
 #include <wx/longlong.h>
+#include "settings.h" // DLLIMPORT
 
 #include <map>
 #include <set>
@@ -17,7 +18,7 @@ class wxFocusEvent;
 class wxMouseEvent;
 class wxPoint;
 
-class cbStyledTextCtrl : public wxScintilla
+class DLLIMPORT cbStyledTextCtrl : public wxScintilla
 {
     public:
         cbStyledTextCtrl(wxWindow* pParent, int id, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = 0);

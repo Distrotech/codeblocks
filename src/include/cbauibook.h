@@ -7,6 +7,7 @@
 #define CBAUIBOOK_H_INCLUDED
 
 #include "prep.h"
+#include "settings.h" // DLLIMPORT
 
 #include <vector>
 
@@ -26,7 +27,7 @@ WX_DEFINE_ARRAY_PTR(cbAuiNotebook*,cbAuiNotebookArray);
   * Another added feature is the possibility to add tooltips to the tabs belonging
   * to added panes.
   */
-class cbAuiNotebook : public wxAuiNotebook
+class DLLIMPORT cbAuiNotebook : public wxAuiNotebook
 {
     public:
         /** \brief cbAuiNotebook constructor
@@ -49,11 +50,13 @@ class cbAuiNotebook : public wxAuiNotebook
          */
         void AdvanceSelection(bool forward = true);
         /** \brief Save layout of the notebook
+         * \param projectTitle only save the layout of the project with this title, save all projects layout, if empty
          * \return wxString the serialized layout
          */
-        wxString SavePerspective();
+        wxString SavePerspective(const wxString projectTitle = wxEmptyString);
         /** \brief Loads serialized notebook layout
          * \param layout the serialized layout
+         * \param mergeLayouts try to merge the tab-layouts
          * \return bool true if successfull
          *
          */

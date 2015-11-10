@@ -478,14 +478,19 @@ uint64_t cbDebuggerStringToAddress(const wxString &address)
     return strtoull(address.mb_str(), nullptr, 16);
 #else
     uint64_t result;
-    if (address.ToULongLong(&result))
+    if (address.ToULongLong(&result, 16))
         return result;
     else
         return 0;
 #endif // wxCHECK_VERSION
 #else
     uint64_t result;
+    // different sizes of long/long long on 64bit/32bit need different conversions
+#ifdef __LP64__
     if (address.ToULong(&result, 16))
+#else
+    if (address.ToULongLong(&result, 16))
+#endif // __LP64__
         return result;
     else
         return 0;

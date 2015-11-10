@@ -14,6 +14,7 @@
 
 #include "wx/dialog.h"
 #include "wx/propdlg.h"
+#include "settings.h" // DLLIMPORT
 
 /*!
  * Base class for layout adapters - code that, for example, turns a dialog into a
@@ -159,7 +160,7 @@ protected:
  * A class that makes its content scroll if necessary
  */
 
-class wxScrollingDialog: public wxDialog
+class DLLIMPORT wxScrollingDialog: public wxDialog
 #if !wxCHECK_VERSION(2,9,0)
     , public wxDialogHelper
 #endif
