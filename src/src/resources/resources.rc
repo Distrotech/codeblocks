@@ -92,19 +92,19 @@ VS_VERSION_INFO    VERSIONINFO
   {
     BLOCK "040904E4" // Lang=US English, CharSet=Windows Multilingual
     {
-      VALUE "Build",            "November 2013\0"
+      VALUE "Build",            "December 2015\0"
       VALUE "Comments",         "Cross-platform IDE built around wxWidgets, designed to be extensible and configurable. Licensed under GPL3.\0"
       VALUE "CompanyName",      "Code::Blocks Team\0"
       VALUE "Developer",        "Code::Blocks Team\0"
       VALUE "FileDescription",  "Code::Blocks IDE\0"
-      VALUE "FileVersion",      "13.12.0.0\0"
+      VALUE "FileVersion",      "15.12.0.0\0"
       VALUE "InternalName",     "Code::Blocks\0"
       VALUE "LegalCopyright",   "Copyright (C) 2004-2015 Code::Blocks Team\0"
       VALUE "LegalTrademarks",  "All rights reserved.\0"
       VALUE "OriginalFilename", "codeblocks.exe\0"
       VALUE "PrivateBuild",     "\0"
       VALUE "ProductName",      "Code::Blocks\0"
-      VALUE "ProductVersion",   "13.12.0.0\0"
+      VALUE "ProductVersion",   "15.12.0.0\0"
       VALUE "SpecialBuild",     "\0"
       VALUE "Support",          "mandrav at codeblocks.org\0"
       VALUE "Users",            "Unlimited.\0"
