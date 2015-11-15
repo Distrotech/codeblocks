@@ -935,7 +935,9 @@ void MainFrame::RecreateMenuBar()
     {
         if (it->first.IsEmpty())
             continue;
-        SaveViewLayout(it->first, it->second, m_LayoutMessagePane[it->first], it->first == m_LastLayoutName);
+        SaveViewLayout(it->first, it->second,
+                       m_LayoutMessagePane[it->first],
+                       it->first == m_LastLayoutName);
     }
 
     Thaw();
@@ -1396,7 +1398,7 @@ void MainFrame::LoadViewLayout(const wxString& name, bool isTemp)
     // first load taborder of MessagePane, so LoadPerspective can restore the last selected tab
     m_pInfoPane->LoadTabOrder(layoutMP);
     m_LayoutManager.LoadPerspective(layout, false);
-    DoFixToolbarsLayout();
+
     DoUpdateLayout();
 
     m_PreviousLayoutName = m_LastLayoutName;
@@ -1488,18 +1490,18 @@ bool MainFrame::LayoutMessagePaneDifferent(const wxString& layout1,const wxStrin
     wxArrayString arLayout2;
 
     strTok.SetString(layout1.BeforeLast('|'), _T(";"));
-    while(strTok.HasMoreTokens())
+    while (strTok.HasMoreTokens())
     {
         arLayout1.Add(strTok.GetNextToken());
     }
 
     strTok.SetString(layout2.BeforeLast('|'), _T(";"));
-    while(strTok.HasMoreTokens())
+    while (strTok.HasMoreTokens())
     {
         arLayout2.Add(strTok.GetNextToken());
     }
 
-    if(checkSelection)
+    if (checkSelection)
     {
         arLayout1.Add(layout1.AfterLast('|'));
         arLayout2.Add(layout2.AfterLast('|'));
@@ -1549,7 +1551,7 @@ void MainFrame::DoFixToolbarsLayout()
         wxAuiPaneInfo& info = panes[i];
         if (info.state & wxAuiPaneInfo::optionToolbar)
         {
-            info.best_size = info.window->GetSize();
+            info.best_size = info.window->GetBestSize();
             info.floating_size = wxDefaultSize;
         }
     }
@@ -2127,10 +2129,10 @@ void MainFrame::ShowHideStartPage(bool forceHasProject, int forceState)
                 Manager::Get()->GetProjectManager()->GetProjects()->GetCount() == 0 &&
                 Manager::Get()->GetConfigManager(_T("app"))->ReadBool(_T("/environment/start_here_page"), true);
 
-    if(forceState<0)
-        show=false;
-    if(forceState>0)
-        show=true;
+    if (forceState<0)
+        show = false;
+    if (forceState>0)
+        show = true;
 
     EditorBase* sh = Manager::Get()->GetEditorManager()->GetEditor(g_StartHereTitle);
     if (show)
@@ -2217,22 +2219,22 @@ wxString MainFrame::GetEditorDescription(EditorBase* eb)
 {
     wxString descr = wxEmptyString;
     cbProject* prj = NULL;
-    if(eb && eb->IsBuiltinEditor())
+    if (eb && eb->IsBuiltinEditor())
     {
         ProjectFile* prjf = ((cbEditor*)eb)->GetProjectFile();
-        if(prjf)
+        if (prjf)
             prj = prjf->GetParentProject();
     }
     else
         prj = Manager::Get()->GetProjectManager() ? Manager::Get()->GetProjectManager()->GetActiveProject() : nullptr;
-    if(prj)
+    if (prj)
     {
         descr = wxString(_("Project: ")) + _T("<b>") + prj->GetTitle() + _T("</b>");
-        if(Manager::Get()->GetProjectManager()->GetActiveProject() == prj)
+        if (Manager::Get()->GetProjectManager()->GetActiveProject() == prj)
             descr += wxString(_(" (Active)"));
         descr += wxString(_T("<br>"));
     }
-    if(eb)
+    if (eb)
         descr += eb->GetFilename();
     return descr;
 }
@@ -2277,13 +2279,12 @@ void MainFrame::OnFileNewWhat(wxCommandEvent& event)
         // wizard-based
 
         TemplateOutputType tot = totProject;
-        if (id == idFileNewProject)     tot = totProject;
-        else if (id == idFileNewTarget) tot = totTarget;
-        else if (id == idFileNewFile)   tot = totFiles;
-        else if (id == idFileNewCustom) tot = totCustom;
-        else if (id == idFileNewUser)   tot = totUser;
-        else
-            return;
+        if      (id == idFileNewProject) tot = totProject;
+        else if (id == idFileNewTarget)  tot = totTarget;
+        else if (id == idFileNewFile)    tot = totFiles;
+        else if (id == idFileNewCustom)  tot = totCustom;
+        else if (id == idFileNewUser)    tot = totUser;
+        else                             return;
 
         wxString filename;
         cbProject* prj = TemplateManager::Get()->New(tot, &filename);
@@ -3776,7 +3777,10 @@ void MainFrame::OnViewLayoutSave(cb_unused wxCommandEvent& event)
     if (!name.IsEmpty())
     {
         DoFixToolbarsLayout();
-        SaveViewLayout(name, m_LayoutManager.SavePerspective(), m_pInfoPane->SaveTabOrder(), true);
+        SaveViewLayout(name,
+                       m_LayoutManager.SavePerspective(),
+                       m_pInfoPane->SaveTabOrder(),
+                       true);
     }
 }
 
@@ -4294,6 +4298,7 @@ static void FitToolbars(wxAuiManager &layoutManager, wxWindow *mainFrame)
         return;
 
     int maxWidth = mainFrame->GetSize().x;
+    int gripperSize =  layoutManager.GetArtProvider()->GetMetric(wxAUI_DOCKART_GRIPPER_SIZE);
 
     // move all toolbars to the left as possible and add the non-fitting to a list
     std::vector<ToolbarRowInfo> rows;
@@ -4305,7 +4310,7 @@ static void FitToolbars(wxAuiManager &layoutManager, wxWindow *mainFrame)
         while (static_cast<int>(rows.size()) <= row)
             rows.push_back(ToolbarRowInfo(0, 0));
 
-        int maxX = rows[row].width + it->window->GetSize().x;
+        int maxX = rows[row].width + it->window->GetBestSize().x + gripperSize;
         if (maxX > maxWidth)
             nonFitingToolbars.push_back(it->window);
         else
@@ -4320,12 +4325,13 @@ static void FitToolbars(wxAuiManager &layoutManager, wxWindow *mainFrame)
     int position = rows.back().position, maxX = rows.back().width;
     for (std::vector<wxWindow*>::iterator it = nonFitingToolbars.begin(); it != nonFitingToolbars.end(); ++it)
     {
-        maxX += (*it)->GetSize().x;
+        maxX += (*it)->GetBestSize().x;
+        maxX += gripperSize;
         if (maxX > maxWidth)
         {
             position = 0;
             lastRow++;
-            maxX = (*it)->GetSize().x;
+            maxX = (*it)->GetBestSize().x + gripperSize;
         }
         layoutManager.GetPane(*it).Position(position++).Row(lastRow);
     }
@@ -4342,14 +4348,17 @@ static void OptimizeToolbars(wxAuiManager &layoutManager, wxWindow *mainFrame)
 
     int maxWidth = mainFrame->GetSize().x;
     int lastRow = 0, position = 0, maxX = 0;
+    int gripperSize =  layoutManager.GetArtProvider()->GetMetric(wxAUI_DOCKART_GRIPPER_SIZE);
+
     for (std::set<ToolbarFitInfo>::const_iterator it = sorted.begin(); it != sorted.end(); ++it)
     {
-        maxX += it->window->GetSize().x;
+        maxX += it->window->GetBestSize().x;
+        maxX += gripperSize;
         if (maxX > maxWidth)
         {
             position = 0;
             lastRow++;
-            maxX = it->window->GetSize().x;
+            maxX = it->window->GetBestSize().x + gripperSize;
         }
         layoutManager.GetPane(it->window).Position(position++).Row(lastRow);
     }
