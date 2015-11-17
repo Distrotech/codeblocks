@@ -126,7 +126,7 @@ void Font::Create(const FontParameters &fp) {
     else
         weight = wxFONTWEIGHT_NORMAL;
 
-    wxFont font(fp.size,
+    wxFont font(wxRound(fp.size),
         wxFONTFAMILY_DEFAULT,
         fp.italic ? wxFONTSTYLE_ITALIC :  wxFONTSTYLE_NORMAL,
         weight,
@@ -351,8 +351,8 @@ void SurfaceImpl::Polygon(Point *pts, int npts, ColourDesired fore, ColourDesire
     wxPoint *p = new wxPoint[npts];
 
     for (int i=0; i<npts; i++) {
-        p[i].x = pts[i].x;
-        p[i].y = pts[i].y;
+        p[i].x = wxRound(pts[i].x);
+        p[i].y = wxRound(pts[i].y);
     }
     hDC->DrawPolygon(npts, p);
     delete [] p;
@@ -590,7 +590,7 @@ void SurfaceImpl::Copy(PRectangle rc, Point from, Surface &surfaceSource)
     wxRect r = wxRectFromPRectangle(rc);
     hDC->Blit(r.x, r.y, r.width, r.height,
               ((SurfaceImpl&)surfaceSource).hDC,
-              from.x, from.y, wxCOPY);
+              wxRound(from.x), wxRound(from.y), wxCOPY);
 }
 
 void SurfaceImpl::DrawTextNoClip(PRectangle rc, Font &font, XYPOSITION ybase,
@@ -604,7 +604,7 @@ void SurfaceImpl::DrawTextNoClip(PRectangle rc, Font &font, XYPOSITION ybase,
 
     // ybase is where the baseline should be, but wxWin uses the upper left
     // corner, so I need to calculate the real position for the text...
-    hDC->DrawText(sci2wx(s, len), rc.left, ybase - GetAscent(font));
+    hDC->DrawText(sci2wx(s, len), wxRound(rc.left), wxRound(ybase - GetAscent(font)));
 }
 
 void SurfaceImpl::DrawTextClipped(PRectangle rc, Font &font, XYPOSITION ybase,
@@ -618,7 +618,7 @@ void SurfaceImpl::DrawTextClipped(PRectangle rc, Font &font, XYPOSITION ybase,
     hDC->SetClippingRegion(wxRectFromPRectangle(rc));
 
     // see comments above
-    hDC->DrawText(sci2wx(s, len), rc.left, ybase - GetAscent(font));
+    hDC->DrawText(sci2wx(s, len), wxRound(rc.left), wxRound(ybase - GetAscent(font)));
     hDC->DestroyClippingRegion();
 }
 

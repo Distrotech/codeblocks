@@ -23,7 +23,7 @@
 #include <wx/defs.h>
 
 /* C::B -> Don't forget to change version number here and in wxscintilla.cpp at the bottom */
-#define wxSCINTILLA_VERSION _T("3.60.0")
+#define wxSCINTILLA_VERSION _T("3.62.0")
 
 #include <wx/control.h>
 #include <wx/dnd.h>
@@ -77,6 +77,7 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_WS_INVISIBLE 0
 #define wxSCI_WS_VISIBLEALWAYS 1
 #define wxSCI_WS_VISIBLEAFTERINDENT 2
+#define wxSCI_WS_VISIBLEONLYININDENT 3
 #define wxSCI_EOL_CRLF 0
 #define wxSCI_EOL_CR 1
 #define wxSCI_EOL_LF 2
@@ -270,6 +271,10 @@ class WXDLLIMPEXP_FWD_CORE wxScrollBar;
 #define wxSCI_FOLDFLAG_LEVELNUMBERS 0x0040
 #define wxSCI_FOLDFLAG_LINESTATE 0x0080
 #define wxSCI_TIME_FOREVER 10000000
+#define wxSCI_IDLESTYLING_NONE 0
+#define wxSCI_IDLESTYLING_TOVISIBLE 1
+#define wxSCI_IDLESTYLING_AFTERVISIBLE 2
+#define wxSCI_IDLESTYLING_ALL 3
 #define wxSCI_WRAP_NONE 0
 #define wxSCI_WRAP_WORD 1
 #define wxSCI_WRAP_CHAR 2
@@ -3790,6 +3795,12 @@ public:
 
     // Is the range start..end considered a word?
     bool IsRangeWord(int start, int end);
+
+    // Sets limits to idle styling.
+    void SetIdleStyling(int idleStyling);
+
+    // Retrieve the limits to idle styling.
+    int GetIdleStyling() const;
 
     // Sets whether text is word wrapped.
     void SetWrapMode(int mode);

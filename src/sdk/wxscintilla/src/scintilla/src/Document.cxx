@@ -109,6 +109,7 @@ Document::Document() {
 	useTabs = true;
 	tabIndents = true;
 	backspaceUnindents = false;
+	durationStyleOneLine = 0.00001;
 
 	matchesValid = false;
 	regex = 0;
@@ -1367,8 +1368,6 @@ int Document::CountCharacters(int startPos, int endPos) const {
 	int i = startPos;
 	while (i < endPos) {
 		count++;
-		if (IsCrLf(i))
-			i++;
 		i = NextPosition(i, 1);
 	}
 	return count;
@@ -1936,6 +1935,33 @@ void Document::EnsureStyledTo(int pos) {
 	}
 }
 
+void Document::StyleToAdjustingLineDuration(int pos) {
+	// Place bounds on the duration used to avoid glitches spiking it
+	// and so causing slow styling or non-responsive scrolling
+	const double minDurationOneLine = 0.000001;
+	const double maxDurationOneLine = 0.0001;
+
+	// Alpha value for exponential smoothing.
+	// Most recent value contributes 25% to smoothed value.
+	const double alpha = 0.25;
+
+	const Sci_Position lineFirst = LineFromPosition(GetEndStyled());
+	ElapsedTime etStyling;
+	EnsureStyledTo(pos);
+	const double durationStyling = etStyling.Duration();
+	const Sci_Position lineLast = LineFromPosition(GetEndStyled());
+	if (lineLast >= lineFirst + 8) {
+		// Only adjust for styling multiple lines to avoid instability
+		const double durationOneLine = durationStyling / (lineLast - lineFirst);
+		durationStyleOneLine = alpha * durationOneLine + (1.0 - alpha) * durationStyleOneLine;
+		if (durationStyleOneLine < minDurationOneLine) {
+			durationStyleOneLine = minDurationOneLine;
+		} else if (durationStyleOneLine > maxDurationOneLine) {
+			durationStyleOneLine = maxDurationOneLine;
+		}
+	}
+}
+
 void Document::LexerChanged() {
 	// Tell the watchers the lexer has changed.
 	for (std::vector<WatcherWithUserData>::iterator it = watchers.begin(); it != watchers.end(); ++it) {
@@ -2185,7 +2211,7 @@ int Document::WordPartRight(int pos) {
 	return pos;
 }
 
-bool IsLineEndChar(char c) {
+static bool IsLineEndChar(char c) {
 	return (c == '\n' || c == '\r');
 }
 

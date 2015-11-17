@@ -2337,6 +2337,18 @@ bool wxScintilla::IsRangeWord(int start, int end)
     return SendMsg(SCI_ISRANGEWORD, start, end) != 0;
 }
 
+// Sets limits to idle styling.
+void wxScintilla::SetIdleStyling(int idleStyling)
+{
+    SendMsg(SCI_SETIDLESTYLING, idleStyling, 0);
+}
+
+// Retrieve the limits to idle styling.
+int wxScintilla::GetIdleStyling() const
+{
+    return SendMsg(SCI_GETIDLESTYLING, 0, 0);
+}
+
 // Sets whether text is word wrapped.
 void wxScintilla::SetWrapMode(int mode)
 {
@@ -5891,7 +5903,7 @@ wxScintillaEvent::wxScintillaEvent(const wxScintillaEvent& event):
 /*static*/ wxVersionInfo wxScintilla::GetLibraryVersionInfo()
 {
     /* C::B -> Don't forget to change version number here and in wxscintilla.h at the top */
-    return wxVersionInfo("Scintilla", 3, 60, 0, "Scintilla 3.60");
+    return wxVersionInfo("Scintilla", 3, 62, 0, "Scintilla 3.62");
 }
 #endif
 /* C::B end */
