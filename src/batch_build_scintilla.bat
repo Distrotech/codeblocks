@@ -2,7 +2,7 @@
 rem ----------------------------------------
 rem Setup C::B root folder of *binaries* (!)
 rem ----------------------------------------
-if not defined CB_ROOT set CB_ROOT=C:\Devel\CodeBlocks
+if not defined CB_ROOT set CB_ROOT=D:\Devel\CodeBlocks
 rem ------------------------------------------
 rem Setup GCC root folder with "bin" subfolder
 rem ------------------------------------------

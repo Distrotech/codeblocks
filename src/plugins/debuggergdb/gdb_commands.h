@@ -1182,7 +1182,7 @@ class GdbCmd_ChangeFrame : public DebuggerCmd
             : DebuggerCmd(driver)
             ,m_addrchgmode(p_addrchgmode) //1 means do not change disassembly address
         {
-            m_Cmd << wxString::Format(_T("frame %d"), frameno);
+            m_Cmd << _T("frame ") << frameno;
         }
         void ParseOutput(const wxString& output)
         {
@@ -1283,46 +1283,24 @@ class GdbCmd_Backtrace : public DebuggerCmd
             // #0  main (argc=1, argv=0x3e2440) at my main.cpp:15
             if (reBTX.Matches(line))
             {
-                #if defined(_WIN64)
-                size_t number, address;
-                reBTX.GetMatch(line, 1).ToULongLong(&number);
-                reBTX.GetMatch(line, 2).ToULongLong(&address, 16);
-                #else
-                unsigned long number, address;
-                reBTX.GetMatch(line, 1).ToULong(&number);
-                reBTX.GetMatch(line, 2).ToULong(&address, 16);
-                #endif
-
+                long int number;
+                reBTX.GetMatch(line, 1).ToLong(&number);
                 sf.SetNumber(number);
-                sf.SetAddress(address);
+                sf.SetAddress(cbDebuggerStringToAddress(reBTX.GetMatch(line, 2)));
                 sf.SetSymbol(reBTX.GetMatch(line, 3) + reBTX.GetMatch(line, 4));
             }
             else if (reBT1.Matches(line))
             {
-                #if defined(_WIN64)
-                size_t number, address;
-                reBT1.GetMatch(line, 1).ToULongLong(&number);
-                reBT1.GetMatch(line, 2).ToULongLong(&address, 16);
-                #else
-                unsigned long number, address;
-                reBT1.GetMatch(line, 1).ToULong(&number);
-                reBT1.GetMatch(line, 2).ToULong(&address, 16);
-                #endif
-
+                long int number;
+                reBT1.GetMatch(line, 1).ToLong(&number);
                 sf.SetNumber(number);
-                sf.SetAddress(address);
+                sf.SetAddress(cbDebuggerStringToAddress(reBT1.GetMatch(line, 2)));
                 sf.SetSymbol(reBT1.GetMatch(line, 3) + reBT1.GetMatch(line, 4));
             }
             else if (reBT0.Matches(line))
             {
-                #if defined(_WIN64)
-                size_t number;
-                reBT0.GetMatch(line, 1).ToULongLong(&number);
-                #else
-                unsigned long number;
-                reBT0.GetMatch(line, 1).ToULong(&number);
-                #endif
-
+                long int number;
+                reBT0.GetMatch(line, 1).ToLong(&number);
                 sf.SetNumber(number);
                 sf.SetAddress(0);
                 sf.SetSymbol(reBT0.GetMatch(line, 2));
@@ -1330,18 +1308,10 @@ class GdbCmd_Backtrace : public DebuggerCmd
             }
             else if (reBT4.Matches(line))
             {
-                #if defined(_WIN64)
-                size_t number, address;
-                reBT4.GetMatch(line, 1).ToULongLong(&number);
-                reBT4.GetMatch(line, 2).ToULongLong(&address, 16);
-                #else
-                unsigned long number, address;
-                reBT4.GetMatch(line, 1).ToULong(&number);
-                reBT4.GetMatch(line, 2).ToULong(&address, 16);
-                #endif
-
+                long int number;
+                reBT4.GetMatch(line, 1).ToLong(&number);
                 sf.SetNumber(number);
-                sf.SetAddress(address);
+                sf.SetAddress(cbDebuggerStringToAddress(reBT4.GetMatch(line, 2)));
                 sf.SetSymbol(reBT4.GetMatch(line, 3));
             }
             else
@@ -1566,20 +1536,14 @@ class GdbCmd_Disassembly : public DebuggerCmd
                 }
                 else if (reDisassembly.Matches(lines[i]))
                 {
-                    #if defined(_WIN64)
-                    size_t addr;
-                    reDisassembly.GetMatch(lines[i], 1).ToULongLong(&addr, 16);
-                    #else
-                    unsigned long int addr;
-                    reDisassembly.GetMatch(lines[i], 1).ToULong(&addr, 16);
-                    #endif
+                    uint64_t addr = cbDebuggerStringToAddress(reDisassembly.GetMatch(lines[i], 1));
                     dialog->AddAssemblerLine(addr, reDisassembly.GetMatch(lines[i], 2));
                 }
                 else if (m_mixedMode && reDisassemblySource.Matches(lines[i]))
                 {
-                    unsigned long int lineno ;
-                    reDisassemblySource.GetMatch(lines[i], 1).ToULong(&lineno, 10) ;
-                    dialog->AddSourceLine(lineno, reDisassemblySource.GetMatch(lines[i], 2)) ;
+                    long int lineno;
+                    reDisassemblySource.GetMatch(lines[i], 1).ToLong(&lineno, 10);
+                    dialog->AddSourceLine(lineno, reDisassemblySource.GetMatch(lines[i], 2));
                 }
             }
             dialog->CenterCurrentLine();
@@ -1672,9 +1636,7 @@ class GdbCmd_DisassemblyInit : public DebuggerCmd
                 if (addr == LastAddr && sameSymbol)
                     return;
                 LastAddr = addr;
-                long long_address;
-                addr.ToULong((unsigned long int*)&long_address, 16);
-                sf.SetAddress(long_address);
+                sf.SetAddress(cbDebuggerStringToAddress(addr));
                 if (reDisassemblyInitFunc.Matches(output))
                     sf.SetSymbol(reDisassemblyInitFunc.GetMatch(output, 2));
 
@@ -1682,9 +1644,7 @@ class GdbCmd_DisassemblyInit : public DebuggerCmd
                 dialog->Clear(sf);
                 if(!m_hexAddrStr.empty())
                 {
-                    unsigned long active ;
-                    m_hexAddrStr.ToULong(&active, 16);
-                    dialog->SetActiveAddress(active);
+                    dialog->SetActiveAddress(cbDebuggerStringToAddress(m_hexAddrStr));
                     Cursor acursor = m_pDriver->GetCursor();
                     acursor.address = m_hexAddrStr;
                     m_pDriver->SetCursor(acursor);
@@ -1916,14 +1876,7 @@ class GdbCmd_StepOrNextInstruction : public DebuggerContinueBaseCmd
             if (addrstr.empty())
                 return;
 
-            #if defined(_WIN64)
-            size_t addr;
-            addrstr.ToULongLong(&addr, 16);
-            #else
-            unsigned long int addr;
-            addrstr.ToULong(&addr, 16);
-            #endif
-            if (!dialog->SetActiveAddress(addr))
+            if (!dialog->SetActiveAddress(cbDebuggerStringToAddress(addrstr)))
                 m_pDriver->QueueCommand(new GdbCmd_DisassemblyInit(m_pDriver,disasm_flavour ,addrstr));
         }
 };

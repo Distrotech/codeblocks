@@ -23,7 +23,7 @@
 #include    <iostream>
 
 #include    <wx/stattext.h>
-#include    "../wxswidget.h"
+#include    <wxwidgets/wxswidget.h>
 #include    <mathplot.h>
 
 
@@ -53,8 +53,8 @@ class wxsVector: public wxsWidget
 
         wxArrayString       mXs;            // internal use; X data as a string
         wxArrayString       mYs;            // Y data as a string
-        std::vector<float>  mXf;            // X data as a float value
-        std::vector<float>  mYf;            // Y data as a float
+        std::vector<double>  mXf;            // X data as a double value
+        std::vector<double>  mYf;            // Y data as a double
 
 };
 

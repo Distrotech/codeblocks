@@ -2,46 +2,49 @@
 <CodeBlocks_project_file>
 	<FileVersion major="1" minor="6" />
 	<Project>
-		<Option title="wxSmithPlot - Curve Plotting" />
+		<Option title="wxSmith - wxSmithPlot wx2.8.x" />
 		<Option pch_mode="2" />
 		<Option compiler="gcc" />
 		<Build>
 			<Target title="MathPlot">
-				<Option output="..\..\..\devel\libMathPlot" prefix_auto="1" extension_auto="1" />
+				<Option output="../../../devel/MathPlot" prefix_auto="1" extension_auto="1" />
 				<Option working_dir="" />
-				<Option object_output="..\..\..\.objs\plugins\contrib\wxSmithPlot\MathPlot" />
+				<Option object_output="../../../.objs/plugins/contrib/wxSmithPlot/MathPlot" />
 				<Option type="2" />
 				<Option compiler="gcc" />
 				<Option createDefFile="1" />
 			</Target>
 			<Target title="wxSmithPlot">
 				<Option platforms="Windows;" />
-				<Option output="..\..\..\devel\share\codeblocks\plugins\wxSmithPlot" prefix_auto="0" extension_auto="1" />
-				<Option working_dir="..\..\..\devel" />
-				<Option object_output="..\..\..\.objs\plugins\contrib\wxSmithPlot" />
+				<Option output="../../../devel/share/codeblocks/plugins/wxSmithPlot" prefix_auto="0" extension_auto="1" />
+				<Option working_dir="../../../devel" />
+				<Option object_output="../../../.objs/plugins/contrib/wxSmithPlot" />
+				<Option external_deps="../../../devel/wxsmithlib.dll;" />
 				<Option type="3" />
 				<Option compiler="gcc" />
-				<Option parameters="--debug-log -na -ns -nd -p debug" />
+				<Option parameters="--debug-log --multiple-instance -na -ns -nd -p debug" />
 				<Option host_application="codeblocks.exe" />
+				<Option run_host_application_in_terminal="0" />
 				<Option projectLinkerOptionsRelation="2" />
 				<Compiler>
 					<Add option="-DBUILDING_PLUGIN" />
 					<Add option="-DcbDEBUG" />
 					<Add option="-DCB_PRECOMP" />
-					<Add directory="..\..\..\include" />
-					<Add directory="..\..\..\sdk\wxscintilla\include" />
-					<Add directory="..\..\..\sdk\wxpropgrid\include" />
-					<Add directory="..\wxSmith\properties" />
-					<Add directory="..\wxSmith\wxwidgets" />
-					<Add directory="..\wxSmith\wxwidgets\properties" />
+					<Add directory="../../../include" />
+					<Add directory="../../../sdk/wxscintilla/include" />
+					<Add directory="../../../sdk/wxpropgrid/include" />
+					<Add directory="../wxSmith" />
+					<Add directory="../wxSmith/properties" />
+					<Add directory="../wxSmith/wxwidgets" />
+					<Add directory="../wxSmith/wxwidgets/properties" />
 					<Add directory="images" />
 				</Compiler>
 				<Linker>
 					<Add library="MathPlot" />
 					<Add library="wxsmithlib" />
-					<Add library="codeblocks" />
 					<Add library="wxpropgrid" />
-					<Add directory="..\..\..\devel" />
+					<Add library="codeblocks" />
+					<Add directory="../../../devel" />
 				</Linker>
 				<ExtraCommands>
 					<Add after="zip -j9 ..\..\..\devel\share\CodeBlocks\wxSmithPlot.zip manifest.xml" />
@@ -70,7 +73,8 @@
 			<Add option="-DWX_PRECOMP" />
 			<Add option="-DwxUSE_UNICODE" />
 			<Add directory="$(#wx.include)" />
-			<Add directory="$(#wx.lib)\gcc_dll$(WX_CFG)\msw$(WX_SUFFIX)" />
+			<Add directory="$(#wx.lib)/gcc_dll$(WX_CFG)/msw$(WX_SUFFIX)" />
+			<Add directory="wxmathplot" />
 			<Add directory="." />
 		</Compiler>
 		<Linker>
@@ -78,45 +82,45 @@
 			<Add option="-Wl,--export-all-symbols" />
 			<Add option="-Wl,--enable-auto-import" />
 			<Add library="wxmsw28$(WX_SUFFIX)" />
-			<Add directory="$(#wx.lib)\gcc_dll$(WX_CFG)" />
+			<Add directory="$(#wx.lib)/gcc_dll$(WX_CFG)" />
 		</Linker>
-		<Unit filename="images\axis16.xpm">
+		<Unit filename="images/axis16.xpm">
 			<Option target="wxSmithPlot" />
 		</Unit>
-		<Unit filename="images\axis32.xpm">
+		<Unit filename="images/axis32.xpm">
 			<Option target="wxSmithPlot" />
 		</Unit>
-		<Unit filename="images\marker16.xpm">
+		<Unit filename="images/marker16.xpm">
 			<Option target="wxSmithPlot" />
 		</Unit>
-		<Unit filename="images\marker32.xpm">
+		<Unit filename="images/marker32.xpm">
 			<Option target="wxSmithPlot" />
 		</Unit>
-		<Unit filename="images\plot16.xpm">
+		<Unit filename="images/plot16.xpm">
 			<Option target="wxSmithPlot" />
 		</Unit>
-		<Unit filename="images\plot32.xpm">
+		<Unit filename="images/plot32.xpm">
 			<Option target="wxSmithPlot" />
 		</Unit>
-		<Unit filename="images\vector16.xpm">
+		<Unit filename="images/text16.xpm">
 			<Option target="wxSmithPlot" />
 		</Unit>
-		<Unit filename="images\vector32.xpm">
+		<Unit filename="images/text32.xpm">
+			<Option target="wxSmithPlot" />
+		</Unit>
+		<Unit filename="images/vector16.xpm">
+			<Option target="wxSmithPlot" />
+		</Unit>
+		<Unit filename="images/vector32.xpm">
 			<Option target="wxSmithPlot" />
 		</Unit>
 		<Unit filename="manifest.xml">
 			<Option target="wxSmithPlot" />
 		</Unit>
-		<Unit filename="mathplot.cpp">
+		<Unit filename="wxmathplot/mathplot.cpp">
 			<Option target="MathPlot" />
 		</Unit>
-		<Unit filename="mathplot.h">
-			<Option target="MathPlot" />
-		</Unit>
-		<Unit filename="mpMarker.cpp">
-			<Option target="MathPlot" />
-		</Unit>
-		<Unit filename="mpMarker.h">
+		<Unit filename="wxmathplot/mathplot.h">
 			<Option target="MathPlot" />
 		</Unit>
 		<Unit filename="wxsAxis.cpp">
@@ -141,6 +145,12 @@
 			<Option target="wxSmithPlot" />
 		</Unit>
 		<Unit filename="wxsSmithPlot.h">
+			<Option target="wxSmithPlot" />
+		</Unit>
+		<Unit filename="wxsText.cpp">
+			<Option target="wxSmithPlot" />
+		</Unit>
+		<Unit filename="wxsText.h">
 			<Option target="wxSmithPlot" />
 		</Unit>
 		<Unit filename="wxsVector.cpp">

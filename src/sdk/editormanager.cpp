@@ -180,6 +180,7 @@ EditorManager::EditorManager()
                             wxSystemSettings::GetColour(wxSYS_COLOUR_3DFACE));
     colours->RegisterColour(_("Editor"), _("Margin chrome highlight colour"), wxT("editor_margin_chrome_highlight"),
                             wxSystemSettings::GetColour(wxSYS_COLOUR_3DHIGHLIGHT));
+    colours->RegisterColour(_("Editor"), _("Whitespace"), wxT("editor_whitespace"), wxColor(195, 195, 195));
 }
 
 EditorManager::~EditorManager()
@@ -838,6 +839,12 @@ void EditorManager::CheckForExternallyModifiedFiles()
                     {
                         if (pf->GetFileState() != fvsMissing) // already asked
                         {
+                            // Find the window, that actually has the mouse-focus and force a release
+                            // prevents crash on windows or hang on wxGTK
+                            wxWindow* win = wxWindow::GetCapture();
+                            if (win)
+                                win->ReleaseMouse();
+
                             wxString msg;
                             msg.Printf(_("%s has been deleted, or is no longer available.\n"
                                          "Do you wish to try to save the file to disk?\n"
@@ -888,6 +895,13 @@ void EditorManager::CheckForExternallyModifiedFiles()
         {
             if (ed->GetModified()) // Already set the flag
                 continue;
+
+            // Find the window, that actually has the mouse-focus and force a release
+            // prevents crash on windows or hang on wxGTK
+            wxWindow* win = wxWindow::GetCapture();
+            if (win)
+                win->ReleaseMouse();
+
             wxString msg;
             msg.Printf(_("%s has been deleted, or is no longer available.\n"
                          "Do you wish to keep the file open?\n"
@@ -972,6 +986,12 @@ void EditorManager::CheckForExternallyModifiedFiles()
 
     if (failedFiles.GetCount())
     {
+        // Find the window, that actually has the mouse-focus and force a release
+        // prevents crash on windows or hang on wxGTK
+        wxWindow* win = wxWindow::GetCapture();
+        if (win)
+            win->ReleaseMouse();
+
         wxString msg;
         msg.Printf(_("Could not reload all files:\n\n%s"), GetStringFromArray(failedFiles, _T("\n")).c_str());
         cbMessageBox(msg, _("Error"), wxICON_ERROR);

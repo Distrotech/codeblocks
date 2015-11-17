@@ -18,7 +18,7 @@
 */
 
 #include "wxsMarker.h"
-#include "../wxsitemresdata.h"
+#include <wxwidgets/wxsitemresdata.h>
 
 //------------------------------------------------------------------------------
 
@@ -27,8 +27,8 @@ namespace
 
 // Loading images from xpm files
 
-    #include "marker16.xpm"
-    #include "marker32.xpm"
+    #include "images/marker16.xpm"
+    #include "images/marker32.xpm"
 
     wxsRegisterItem<wxsMarker> Reg(
         _T("mpMarker"),                 // Class name
@@ -102,27 +102,27 @@ wxString    s;
 
 // the header for mathplot
 
-    AddHeader(_T("<mpMarker.h>"),GetInfo().ClassName,hfInPCH);
+    AddHeader(_T("<mathplot.h>"),GetInfo().ClassName,hfInPCH);
 
 // create the vector -- but not the setup code
 
-    Codef(_T("%s = new mpMarker(%t, %s, %s);\n"), vname.c_str(), mLabel.c_str(), mXpos.c_str(), mYpos.c_str());
+    Codef(_T("%s = new mpMarker(%t, %s, %s);\n"), vname.wx_str(), mLabel.wx_str(), mXpos.wx_str(), mYpos.wx_str());
 //  BuildSetupWindowCode();
 
 // assign a pen to the layer
 
     dtext = mPenColour.BuildCode(GetCoderContext());
     if (dtext.Len() > 0) {
-        Codef(_T("wxPen   %s(%s);\n"), cname.c_str(), dtext.c_str());
-        Codef(_T("%s->SetPen(%s);\n"), vname.c_str(), cname.c_str());
+        Codef(_T("wxPen   %s(%s);\n"), cname.wx_str(), dtext.wx_str());
+        Codef(_T("%s->SetPen(%s);\n"), vname.wx_str(), cname.wx_str());
     };
 
 // assign a font to the layer
 
     dtext = mPenFont.BuildFontCode(fname, GetCoderContext());
     if (dtext.Len() > 0) {
-        Codef(_T("%s"), dtext.c_str());
-        Codef(_T("%s->SetFont(%s);\n"), vname.c_str(), fname.c_str());
+        Codef(_T("%s"), dtext.wx_str());
+        Codef(_T("%s->SetFont(%s);\n"), vname.wx_str(), fname.wx_str());
     };
 
 // add to parent window -- should be a mpWindow
@@ -130,7 +130,7 @@ wxString    s;
     if ((GetPropertiesFlags() & flHidden) && GetBaseProps()->m_Hidden)
         ; // do nothing
     else
-        Codef(_T("%s->AddLayer(%s);\n"), pname.c_str(), vname.c_str());
+        Codef(_T("%s->AddLayer(%s);\n"), pname.wx_str(), vname.wx_str());
 
 
 }

@@ -10,10 +10,11 @@
 #include <wx/xrc/xh_dlg.h>
 #include <wx/toolbar.h>
 
+#include "settings.h" // DLLIMPORT
 
 class wxXmlResourceHandler;
 
-class wxToolBarAddOnXmlHandler : public wxXmlResourceHandler
+class DLLIMPORT wxToolBarAddOnXmlHandler : public wxXmlResourceHandler
 {
     public:
         wxToolBarAddOnXmlHandler();
@@ -30,7 +31,7 @@ class wxToolBarAddOnXmlHandler : public wxXmlResourceHandler
             wxSize size = wxDefaultSize);
 };
 
-class wxScrollingDialogXmlHandler : public wxDialogXmlHandler
+class DLLIMPORT wxScrollingDialogXmlHandler : public wxDialogXmlHandler
 {
     DECLARE_DYNAMIC_CLASS(wxScrollingDialogXmlHandler)
 
