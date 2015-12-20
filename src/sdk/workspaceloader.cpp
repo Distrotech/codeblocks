@@ -18,6 +18,7 @@
     #include "workspaceloader.h"
 
     #include "manager.h"
+    #include "configmanager.h"
     #include "projectmanager.h"
     #include "logmanager.h"
     #include "cbproject.h"
@@ -248,7 +249,7 @@ bool WorkspaceLoader::SaveLayout(const wxString& filename)
     }
     // else No workspace present to save.
 
-    if (true) // make configurable ?
+    if (Manager::Get()->GetConfigManager(_T("app"))->ReadBool(_T("/environment/enable_editor_layout"), true))
     {
         TiXmlElement *el =
             static_cast<TiXmlElement*>(
@@ -370,14 +371,14 @@ bool WorkspaceLoader::LoadLayout(const wxString& filename)
     }
     // else XML element 'PreferredTarget' not found?!
 
-    if (major >= 1)
+    if (   (major >= 1)
+        && (Manager::Get()->GetConfigManager(_T("app"))->ReadBool(_T("/environment/enable_editor_layout"), true)) )
     {
-        if (TiXmlElement* el = root->FirstChildElement("EditorTabsLayout")) // make configurable ?
+        if (TiXmlElement* el = root->FirstChildElement("EditorTabsLayout"))
         {
-            if(el->Attribute("layout"))
+            if (el->Attribute("layout"))
                 Manager::Get()->GetEditorManager()->GetNotebook()->LoadPerspective(cbC2U(el->Attribute("layout")));
         }
-        // else ?!
     }
 
     return true;
